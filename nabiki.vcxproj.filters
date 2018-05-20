@@ -1,0 +1,118 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="clsolver.cpp">
+      <Filter>OpenCL</Filter>
+    </ClCompile>
+    <ClCompile Include="cudasolver.cpp">
+      <Filter>CUDA</Filter>
+    </ClCompile>
+    <ClCompile Include="cpusolver.cpp">
+      <Filter>CPU</Filter>
+    </ClCompile>
+    <ClCompile Include="commo.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="keccak.c">
+      <Filter>Libs</Filter>
+    </ClCompile>
+    <ClCompile Include="miner_state.cpp" />
+    <ClCompile Include="hybridminer.cpp" />
+    <ClCompile Include="BigInt\BigIntegerUtils.cpp">
+      <Filter>Libs\BigInt</Filter>
+    </ClCompile>
+    <ClCompile Include="BigInt\BigUnsigned.cpp">
+      <Filter>Libs\BigInt</Filter>
+    </ClCompile>
+    <ClCompile Include="BigInt\BigUnsignedInABase.cpp">
+      <Filter>Libs\BigInt</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="hybridminer.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="miner_state.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="types.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="json.hpp">
+      <Filter>Libs</Filter>
+    </ClInclude>
+    <ClInclude Include="BigInt\BigUnsignedInABase.hh">
+      <Filter>Libs\BigInt</Filter>
+    </ClInclude>
+    <ClInclude Include="BigInt\BigIntegerLibrary.hh">
+      <Filter>Libs\BigInt</Filter>
+    </ClInclude>
+    <ClInclude Include="BigInt\BigIntegerUtils.hh">
+      <Filter>Libs\BigInt</Filter>
+    </ClInclude>
+    <ClInclude Include="BigInt\BigUnsigned.hh">
+      <Filter>Libs\BigInt</Filter>
+    </ClInclude>
+    <ClInclude Include="BigInt\NumberlikeArray.hh">
+      <Filter>Libs\BigInt</Filter>
+    </ClInclude>
+    <ClInclude Include="clsolver.h">
+      <Filter>OpenCL</Filter>
+    </ClInclude>
+    <ClInclude Include="cudasolver.h">
+      <Filter>CUDA</Filter>
+    </ClInclude>
+    <ClInclude Include="cpusolver.h">
+      <Filter>CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="commo.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="sph_types.h">
+      <Filter>Libs</Filter>
+    </ClInclude>
+    <ClInclude Include="sph_keccak.h">
+      <Filter>Libs</Filter>
+    </ClInclude>
+    <ClInclude Include="isolver.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Libs">
+      <UniqueIdentifier>{f50da146-bdca-4103-9bdc-e248cc9da0d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Libs\BigInt">
+      <UniqueIdentifier>{afb5a3fa-f519-45ad-880b-00f5eaa0c822}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OpenCL">
+      <UniqueIdentifier>{f067f171-c5b5-4866-8314-518b45779a2a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CUDA">
+      <UniqueIdentifier>{c86fa1c3-d580-4d78-a779-28ce46cf885f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CPU">
+      <UniqueIdentifier>{8193b5e0-8639-441c-bdda-e09fb2e2ecb6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Network">
+      <UniqueIdentifier>{7c90f7ae-809f-436f-b20e-5a6e00f2f96a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers">
+      <UniqueIdentifier>{529add3a-eade-460c-8c62-0a9e372e90d4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="version.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="cudasolver.cu">
+      <Filter>CUDA</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="clsolver.cl">
+      <Filter>OpenCL</Filter>
+    </None>
+  </ItemGroup>
+</Project>
