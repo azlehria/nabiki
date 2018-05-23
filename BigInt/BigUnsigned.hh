@@ -7,24 +7,24 @@
  * available memory.  BigUnsigneds support most mathematical operators and can
  * be converted to and from most primitive integer types.
  *
- * The number is stored as a NumberlikeArray of unsigned longs as if it were
- * written in base 256^sizeof(unsigned long).  The least significant block is
+ * The number is stored as a NumberlikeArray of uint64_ts as if it were
+ * written in base 256^sizeof(uint64_t).  The least significant block is
  * first, and the length is such that the most significant block is nonzero. */
-class BigUnsigned : protected NumberlikeArray<unsigned long> {
+class BigUnsigned : protected NumberlikeArray<uint64_t> {
 
 public:
 	// Enumeration for the result of a comparison.
 	enum CmpRes { less = -1, equal = 0, greater = 1 };
 
-	// BigUnsigneds are built with a Blk type of unsigned long.
-	typedef unsigned long Blk;
+	// BigUnsigneds are built with a Blk type of uint64_t.
+	typedef uint64_t Blk;
 
 	typedef NumberlikeArray<Blk>::Index Index;
 	using NumberlikeArray<Blk>::N;
 
 protected:
 	// Creates a BigUnsigned with a capacity; for internal use.
-	BigUnsigned(int, Index c) : NumberlikeArray<Blk>(0, c) {}
+	BigUnsigned(int64_t, Index c) : NumberlikeArray<Blk>(0, c) {}
 
 	// Decreases len to eliminate any leading zero blocks.
 	void zapLeadingZeros() { 
@@ -54,14 +54,12 @@ public:
 	~BigUnsigned() {}
 	
 	// Constructors from primitive integer types
-	BigUnsigned(unsigned long long x);
-	BigUnsigned(         long long x);
-	BigUnsigned(unsigned long      x);
-	BigUnsigned(         long      x);
-	BigUnsigned(unsigned int       x);
-	BigUnsigned(         int       x);
-	BigUnsigned(unsigned short     x);
-	BigUnsigned(         short     x);
+	BigUnsigned(uint64_t x);
+	BigUnsigned( int64_t x);
+	BigUnsigned(uint32_t x);
+	BigUnsigned( int32_t x);
+	BigUnsigned(uint16_t x);
+	BigUnsigned( int16_t x);
 protected:
 	// Helpers
 	template <class X> void initFromPrimitive      (X x);
@@ -71,14 +69,12 @@ public:
 	/* Converters to primitive integer types
 	 * The implicit conversion operators caused trouble, so these are now
 	 * named. */
-	unsigned long long toUnsignedLongLong() const;
-	long long          toLongLong        () const;
-	unsigned long      toUnsignedLong    () const;
-	long               toLong            () const;
-	unsigned int       toUnsignedInt     () const;
-	int                toInt             () const;
-	unsigned short     toUnsignedShort   () const;
-	short              toShort           () const;
+	uint64_t toUnsignedLongLong() const;
+	 int64_t         toLongLong() const;
+	uint32_t     toUnsignedLong() const;
+	 int32_t             toLong() const;
+	uint16_t    toUnsignedShort() const;
+	 int16_t            toShort() const;
 protected:
 	// Helpers
 	template <class X> X convertToSignedPrimitive() const;
@@ -187,8 +183,8 @@ public:
 	void bitXor(const BigUnsigned &a, const BigUnsigned &b);
 	/* Negative shift amounts translate to opposite-direction shifts,
 	 * except for -2^(8*sizeof(int)-1) which is unimplemented. */
-	void bitShiftLeft(const BigUnsigned &a, int b);
-	void bitShiftRight(const BigUnsigned &a, int b);
+	void bitShiftLeft(const BigUnsigned &a, int64_t b);
+	void bitShiftRight(const BigUnsigned &a, int64_t b);
 
 	/* `a.divideWithRemainder(b, q)' is like `q = a / b, a %= b'.
 	 * / and % use semantics similar to Knuth's, which differ from the
@@ -212,8 +208,8 @@ public:
 	BigUnsigned operator &(const BigUnsigned &x) const;
 	BigUnsigned operator |(const BigUnsigned &x) const;
 	BigUnsigned operator ^(const BigUnsigned &x) const;
-	BigUnsigned operator <<(int b) const;
-	BigUnsigned operator >>(int b) const;
+	BigUnsigned operator <<(int64_t b) const;
+	BigUnsigned operator >>(int64_t b) const;
 
 	// OVERLOADED ASSIGNMENT OPERATORS
 	void operator +=(const BigUnsigned &x);
@@ -224,8 +220,8 @@ public:
 	void operator &=(const BigUnsigned &x);
 	void operator |=(const BigUnsigned &x);
 	void operator ^=(const BigUnsigned &x);
-	void operator <<=(int b);
-	void operator >>=(int b);
+	void operator <<=(int64_t b);
+	void operator >>=(int64_t b);
 
 	/* INCREMENT/DECREMENT OPERATORS
 	 * To discourage messy coding, these do not return *this, so prefix
@@ -237,11 +233,7 @@ public:
 
 	// Helper function that needs access to BigUnsigned internals
 	friend Blk getShiftedBlock(const BigUnsigned &num, Index x,
-			unsigned int y);
-
-	// See BigInteger.cc.
-	template <class X>
-	friend X convertBigUnsignedToPrimitiveAccess(const BigUnsigned &a);
+			uint64_t y);
 };
 
 /* Implementing the return-by-value and assignment operators in terms of the
@@ -292,12 +284,12 @@ inline BigUnsigned BigUnsigned::operator ^(const BigUnsigned &x) const {
 	ans.bitXor(*this, x);
 	return ans;
 }
-inline BigUnsigned BigUnsigned::operator <<(int b) const {
+inline BigUnsigned BigUnsigned::operator <<(int64_t b) const {
 	BigUnsigned ans;
 	ans.bitShiftLeft(*this, b);
 	return ans;
 }
-inline BigUnsigned BigUnsigned::operator >>(int b) const {
+inline BigUnsigned BigUnsigned::operator >>(int64_t b) const {
 	BigUnsigned ans;
 	ans.bitShiftRight(*this, b);
 	return ans;
@@ -336,10 +328,10 @@ inline void BigUnsigned::operator |=(const BigUnsigned &x) {
 inline void BigUnsigned::operator ^=(const BigUnsigned &x) {
 	bitXor(*this, x);
 }
-inline void BigUnsigned::operator <<=(int b) {
+inline void BigUnsigned::operator <<=(int64_t b) {
 	bitShiftLeft(*this, b);
 }
-inline void BigUnsigned::operator >>=(int b) {
+inline void BigUnsigned::operator >>=(int64_t b) {
 	bitShiftRight(*this, b);
 }
 
@@ -407,7 +399,7 @@ X BigUnsigned::convertToPrimitive() const {
 
 /* Wrap the above in an x >= 0 test to make sure we got a nonnegative result,
  * not a negative one that happened to convert back into the correct nonnegative
- * one.  (E.g., catch incorrect conversion of 2^31 to the long -2^31.)  Again,
+ * one.  (E.g., catch incorrect conversion of 2^63 to the long -2^63.)  Again,
  * separated to avoid a g++ warning. */
 template <class X>
 X BigUnsigned::convertToSignedPrimitive() const {

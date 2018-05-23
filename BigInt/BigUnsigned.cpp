@@ -5,23 +5,19 @@
 // The templates used by these constructors and converters are at the bottom of
 // BigUnsigned.hh.
 
-BigUnsigned::BigUnsigned(unsigned long long x) { initFromPrimitive      (x); }
-BigUnsigned::BigUnsigned(unsigned long      x) { initFromPrimitive      (x); }
-BigUnsigned::BigUnsigned(unsigned int       x) { initFromPrimitive      (x); }
-BigUnsigned::BigUnsigned(unsigned short     x) { initFromPrimitive      (x); }
-BigUnsigned::BigUnsigned(         long long x) { initFromSignedPrimitive(x); }
-BigUnsigned::BigUnsigned(         long      x) { initFromSignedPrimitive(x); }
-BigUnsigned::BigUnsigned(         int       x) { initFromSignedPrimitive(x); }
-BigUnsigned::BigUnsigned(         short     x) { initFromSignedPrimitive(x); }
+BigUnsigned::BigUnsigned(uint64_t x) { initFromPrimitive      (x); }
+BigUnsigned::BigUnsigned(uint32_t x) { initFromPrimitive      (x); }
+BigUnsigned::BigUnsigned(uint16_t x) { initFromPrimitive      (x); }
+BigUnsigned::BigUnsigned( int64_t x) { initFromSignedPrimitive(x); }
+BigUnsigned::BigUnsigned( int32_t x) { initFromSignedPrimitive(x); }
+BigUnsigned::BigUnsigned( int16_t x) { initFromSignedPrimitive(x); }
 
-unsigned long long BigUnsigned::toUnsignedLongLong () const { return convertToPrimitive      <unsigned long long>(); }
-unsigned long      BigUnsigned::toUnsignedLong     () const { return convertToPrimitive      <unsigned long     >(); }
-unsigned int       BigUnsigned::toUnsignedInt      () const { return convertToPrimitive      <unsigned int      >(); }
-unsigned short     BigUnsigned::toUnsignedShort    () const { return convertToPrimitive      <unsigned short    >(); }
-long long          BigUnsigned::toLongLong         () const { return convertToSignedPrimitive<         long long>(); }
-long               BigUnsigned::toLong             () const { return convertToSignedPrimitive<         long     >(); }
-int                BigUnsigned::toInt              () const { return convertToSignedPrimitive<         int      >(); }
-short              BigUnsigned::toShort            () const { return convertToSignedPrimitive<         short    >(); }
+uint64_t BigUnsigned::toUnsignedLongLong () const { return convertToPrimitive      <uint64_t>(); }
+uint32_t BigUnsigned::toUnsignedLong     () const { return convertToPrimitive      <uint32_t>(); }
+uint16_t BigUnsigned::toUnsignedShort    () const { return convertToPrimitive      <uint16_t>(); }
+ int64_t BigUnsigned::toLongLong         () const { return convertToSignedPrimitive< int64_t>(); }
+ int32_t BigUnsigned::toLong             () const { return convertToSignedPrimitive< int32_t>(); }
+ int16_t BigUnsigned::toShort            () const { return convertToSignedPrimitive< int16_t>(); }
 
 // BIT/BLOCK ACCESSORS
 
@@ -295,7 +291,7 @@ void BigUnsigned::subtract(const BigUnsigned &a, const BigUnsigned &b) {
  * the test `y == 0' handles this case specially.
  */
 inline BigUnsigned::Blk getShiftedBlock(const BigUnsigned &num,
-	BigUnsigned::Index x, unsigned int y) {
+	BigUnsigned::Index x, uint64_t y) {
 	BigUnsigned::Blk part1 = (x == 0 || y == 0) ? 0 : (num.blk[x - 1] >> (BigUnsigned::N - y));
 	BigUnsigned::Blk part2 = (x == num.len) ? 0 : (num.blk[x] << y);
 	return part1 | part2;
@@ -317,7 +313,7 @@ void BigUnsigned::multiply(const BigUnsigned &a, const BigUnsigned &b) {
 	 */
 	// Variables for the calculation
 	Index i, j, k;
-	unsigned int i2;
+	uint64_t i2;
 	Blk temp;
 	bool carryIn, carryOut;
 	// Set preliminary length and make room
@@ -446,7 +442,7 @@ void BigUnsigned::divideWithRemainder(const BigUnsigned &b, BigUnsigned &q) {
 	 * blocks. */
 	// Variables for the calculation
 	Index i, j, k;
-	unsigned int i2;
+	uint64_t i2;
 	Blk temp;
 	bool borrowIn, borrowOut;
 
@@ -596,7 +592,7 @@ void BigUnsigned::bitXor(const BigUnsigned &a, const BigUnsigned &b) {
 	zapLeadingZeros();
 }
 
-void BigUnsigned::bitShiftLeft(const BigUnsigned &a, int b) {
+void BigUnsigned::bitShiftLeft(const BigUnsigned &a, int64_t b) {
 	DTRT_ALIASED(this == &a, bitShiftLeft(a, b));
 	if (b < 0) {
 		if (b << 1 == 0)
@@ -608,7 +604,7 @@ void BigUnsigned::bitShiftLeft(const BigUnsigned &a, int b) {
 		}
 	}
 	Index shiftBlocks = b / N;
-	unsigned int shiftBits = b % N;
+	uint64_t shiftBits = b % N;
 	// + 1: room for high bits nudged left into another block
 	len = a.len + shiftBlocks + 1;
 	allocate(len);
@@ -622,7 +618,7 @@ void BigUnsigned::bitShiftLeft(const BigUnsigned &a, int b) {
 		len--;
 }
 
-void BigUnsigned::bitShiftRight(const BigUnsigned &a, int b) {
+void BigUnsigned::bitShiftRight(const BigUnsigned &a, int64_t b) {
 	DTRT_ALIASED(this == &a, bitShiftRight(a, b));
 	if (b < 0) {
 		if (b << 1 == 0)
@@ -636,7 +632,7 @@ void BigUnsigned::bitShiftRight(const BigUnsigned &a, int b) {
 	// This calculation is wacky, but expressing the shift as a left bit shift
 	// within each block lets us use getShiftedBlock.
 	Index rightShiftBlocks = (b + N - 1) / N;
-	unsigned int leftShiftBits = N * rightShiftBlocks - b;
+	uint64_t leftShiftBits = N * rightShiftBlocks - b;
 	// Now (N * rightShiftBlocks - leftShiftBits) == b
 	// and 0 <= leftShiftBits < N.
 	if (rightShiftBlocks >= a.len + 1) {

@@ -11,7 +11,7 @@ BigUnsigned stringToBigUnsigned(const std::string &s) {
 
 std::ostream &operator <<(std::ostream &os, const BigUnsigned &x) {
 	BigUnsignedInABase::Base base;
-	long osFlags = os.flags();
+	int32_t osFlags = os.flags();
 	if (osFlags & os.dec)
 		base = 10;
 	else if (osFlags & os.hex) {

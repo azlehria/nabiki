@@ -16,15 +16,15 @@ BigUnsignedInABase::BigUnsignedInABase(const Digit *d, Index l, Base base)
 }
 
 namespace {
-	unsigned int bitLen(unsigned int x) {
-		unsigned int len = 0;
+	uint64_t bitLen(uint64_t x) {
+		uint64_t len = 0;
 		while (x > 0) {
 			x >>= 1;
 			len++;
 		}
 		return len;
 	}
-	unsigned int ceilingDiv(unsigned int a, unsigned int b) {
+	uint64_t ceilingDiv(uint64_t a, uint64_t b) {
 		return (a + b - 1) / b;
 	}
 }
@@ -36,9 +36,9 @@ BigUnsignedInABase::BigUnsignedInABase(const BigUnsigned &x, Base base) {
 	this->base = base;
 
 	// Get an upper bound on how much space we need
-	int maxBitLenOfX = x.getLength() * BigUnsigned::N;
-	int minBitsPerDigit = bitLen(base) - 1;
-	int maxDigitLenOfX = ceilingDiv(maxBitLenOfX, minBitsPerDigit);
+	int64_t maxBitLenOfX = x.getLength() * BigUnsigned::N;
+	int64_t minBitsPerDigit = bitLen(base) - 1;
+	int64_t maxDigitLenOfX = ceilingDiv(maxBitLenOfX, minBitsPerDigit);
 	len = maxDigitLenOfX; // Another change to comply with `staying in bounds'.
 	allocate(len); // Get the space
 
@@ -79,7 +79,7 @@ BigUnsignedInABase::BigUnsignedInABase(const std::string &s, Base base) {
 	this->base = base;
 
 	// `s.length()' is a `size_t', while `len' is a `NumberlikeArray::Index',
-	// also known as an `unsigned int'.  Some compilers warn without this cast.
+	// also known as an `uint64_t'.  Some compilers warn without this cast.
 	len = Index(s.length());
 	allocate(len);
 

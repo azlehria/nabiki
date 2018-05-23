@@ -8,7 +8,7 @@
 /*
  * A BigUnsignedInABase object represents a nonnegative integer of size limited
  * only by available memory, represented in a user-specified base that can fit
- * in an `unsigned short' (most can, and this saves memory).
+ * in an `uint16_t' (most can, and this saves memory).
  *
  * BigUnsignedInABase is intended as an intermediary class with little
  * functionality of its own.  BigUnsignedInABase objects can be constructed
@@ -29,11 +29,11 @@
  * equality test.  Use BigUnsigned for arithmetic.
  */
 
-class BigUnsignedInABase : protected NumberlikeArray<unsigned short> {
+class BigUnsignedInABase : protected NumberlikeArray<uint16_t> {
 
 public:
-	// The digits of a BigUnsignedInABase are unsigned shorts.
-	typedef unsigned short Digit;
+	// The digits of a BigUnsignedInABase are uint16_ts.
+	typedef uint16_t Digit;
 	// That's also the type of a base.
 	typedef Digit Base;
 

@@ -1,6 +1,8 @@
 #ifndef NUMBERLIKEARRAY_H
 #define NUMBERLIKEARRAY_H
 
+#include <cstdint>
+
 // Make sure we have NULL.
 #ifndef NULL
 #define NULL 0
@@ -22,9 +24,9 @@ class NumberlikeArray {
 public:
 
 	// Type for the index of a block in the array
-	typedef unsigned int Index;
+	typedef uint64_t Index;
 	// The number of bits in a block, defined below.
-	static const unsigned int N;
+	static const uint64_t N;
 
 	// The current allocated capacity of this NumberlikeArray (in blocks)
 	Index cap;
@@ -88,7 +90,7 @@ public:
  * include this header file can generate the necessary real definitions. */
 
 template <class Blk>
-const unsigned int NumberlikeArray<Blk>::N = 8 * sizeof(Blk);
+const uint64_t NumberlikeArray<Blk>::N = 8 * sizeof(Blk);
 
 template <class Blk>
 void NumberlikeArray<Blk>::allocate(Index c) {
