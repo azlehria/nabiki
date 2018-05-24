@@ -28,6 +28,7 @@
     <ClCompile Include="BigInt\BigUnsignedInABase.cpp">
       <Filter>Libs\BigInt</Filter>
     </ClCompile>
+    <ClCompile Include="win32.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hybridminer.h">
@@ -76,6 +77,9 @@
       <Filter>Libs</Filter>
     </ClInclude>
     <ClInclude Include="isolver.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="platforms.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

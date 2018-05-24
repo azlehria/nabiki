@@ -39,7 +39,6 @@ namespace MinerState
   auto getTargetNum() -> uint64_t const;
   auto getMaximumTarget() -> BigUnsigned const;
 
-  auto setPrefix( std::string const prefix ) -> void;
   auto getPrefix() -> std::string const;
   auto setChallenge( std::string challenge ) -> void;
   auto getChallenge() -> std::string const;
@@ -60,7 +59,8 @@ namespace MinerState
   auto setPoolUrl( std::string const pool ) -> void;
   auto getPoolUrl() -> std::string const;
 
-  auto getCudaDevices() -> std::vector<std::pair<int32_t, double>> const;
+  auto getCudaDevices() ->device_list_t const;
+  auto getClDevices() -> device_map_t const;
   auto getCpuThreads() -> uint32_t const;
 
   auto setTokenName( std::string const token ) -> void;
@@ -70,6 +70,7 @@ namespace MinerState
   auto getSubmitStale() -> bool const;
 
   auto isReady() -> bool const;
+  auto isDebug() -> bool const;
 
   auto keccak256( std::string const message ) -> std::string const;
 };

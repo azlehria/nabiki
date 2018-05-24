@@ -11,8 +11,6 @@ based off of https://github.com/Dunhili/SHA3-gpu-brute-force-cracker/blob/master
  */
 
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 #include <cstring>
 #include "cudasolver.h"
 
@@ -32,38 +30,39 @@ auto __cudaSafeCall( cudaError_t err, char const* file, int32_t const line, int3
 #ifndef CUDA_NDEBUG
   if (cudaSuccess != err) {
     std::cerr << "CUDA device " << device_id
-              << " encountered an error in file '" << file
+              << " encountered an asynchronous error in file '" << file
               << "' in line " << line
               << " : " << cudaGetErrorString( err ) << ".\n";
-    exit(EXIT_FAILURE);
+    cudaError_t syncErr = cudaGetLastError();
+    if( syncErr )
+    {
+      std::cerr << "Synchronous error " << syncErr << ":"
+                << cudaGetErrorString( syncErr ) << " was also encountered.\n";
+    }
+    exit( EXIT_FAILURE );
   }
 #endif
 }
 
+#if __CUDA_ARCH__ < 350
+__device__ __constant__ const uint64_t RC[24] = {
+  0x0000000000008082, 0x800000000000808a, 0x8000000080008000,
+  0x000000000000808b, 0x0000000080000001, 0x8000000080008081,
+  0x8000000000008009, 0x000000000000008a, 0x0000000000000088,
+  0x0000000080008009, 0x000000008000000a, 0x000000008000808b,
+  0x800000000000008b, 0x8000000000008089, 0x8000000000008003,
+  0x8000000000008002, 0x8000000000000080, 0x000000000000800a,
+  0x800000008000000a, 0x8000000080008081, 0x8000000000008080,
+  0x0000000080000001
+};
+#endif
 __constant__ uint64_t d_mid[25];
 __constant__ uint64_t d_target;
 
-__device__ __constant__ uint64_t const RC[24] = {
-  0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
-  0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
-  0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
-  0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
-  0x000000008000808b, 0x800000000000008b, 0x8000000000008089,
-  0x8000000000008003, 0x8000000000008002, 0x8000000000000080,
-  0x000000000000800a, 0x800000008000000a, 0x8000000080008081,
-  0x8000000000008080, 0x0000000080000001, 0x8000000080008008
-};
-
 __device__ __forceinline__
-auto ROTL64( uint64_t x, uint32_t y ) -> uint64_t const
+auto ROTL64( uint64_t& output, uint64_t const x, uint32_t const y ) -> void
 {
-  return (x << y) ^ (x >> (64 - y));
-}
-
-__device__ __forceinline__
-auto ROTR64( uint64_t x, uint32_t y ) -> uint64_t const
-{
-  return (x >> y) ^ (x << (64 - y));
+  output = (x << y) ^ (x >> (64 - y));
 }
 
 __device__ __forceinline__
@@ -79,229 +78,249 @@ auto bswap_64( uint64_t const input ) -> uint64_t const
 }
 
 __device__ __forceinline__
-auto bswap_32( uint32_t const input ) -> uint32_t const
+auto xor5( uint64_t& output, uint64_t const* const s ) -> void
 {
-  uint32_t output;
-  asm( "prmt.b32 %0, %1, 0, 0x0123;" : "=r"(output) : "r"(input) );
-  return output;
-}
-
-__device__ __forceinline__
-auto xor5( uint64_t const a, uint64_t const b, uint64_t const c, uint64_t const d, uint64_t const e ) -> uint64_t const
-{
-  uint64_t output;
   asm( "{"
        "  xor.b64 %0, %1, %2;"
        "  xor.b64 %0, %0, %3;"
        "  xor.b64 %0, %0, %4;"
        "  xor.b64 %0, %0, %5;"
-       "}" : "=l"(output) : "l"(a), "l"(b), "l"(c), "l"(d), "l"(e) );
-  return output;
+       "}" : "=l"( output ) : "l"( s[0] ), "l"( s[5] ), "l"( s[10] ), "l"( s[15] ), "l"( s[20] ) );
 }
 
 __device__ __forceinline__
-auto xor3( uint64_t const a, uint64_t const b, uint64_t const c ) -> uint64_t const
+auto xor3( uint64_t& a, uint64_t const b, uint64_t const c ) -> void
 {
-  uint64_t output;
 #if __CUDA_ARCH__ >= 500
   asm( "{"
-       "  lop3.b32 %0, %2, %4, %6, 0x96;"
-       "  lop3.b32 %1, %3, %5, %7, 0x96;"
-       "}" : "=r"(reinterpret_cast<uint2&>(output).x), "=r"(reinterpret_cast<uint2&>(output).y)
-           : "r"(reinterpret_cast<uint2 const&>(a).x), "r"(reinterpret_cast<uint2 const&>(a).y),
-             "r"(reinterpret_cast<uint2 const&>(b).x), "r"(reinterpret_cast<uint2 const&>(b).y),
+       "  lop3.b32 %0, %0, %2, %4, 0x96;"
+       "  lop3.b32 %1, %1, %3, %5, 0x96;"
+       "}" : "+r"(reinterpret_cast<uint2&>(a).x), "+r"(reinterpret_cast<uint2&>(a).y)
+           : "r"(reinterpret_cast<uint2 const&>(b).x), "r"(reinterpret_cast<uint2 const&>(b).y),
              "r"(reinterpret_cast<uint2 const&>(c).x), "r"(reinterpret_cast<uint2 const&>(c).y) );
 #else
   asm( "{"
-       "  xor.b64 %0, %1, %2;"
-       "  xor.b64 %0, %0, %3;"
-       "}" : "=l"(output) : "l"(a), "l"(b), "l"(c) );
+       "  xor.b64 %0, %0, %1;"
+       "  xor.b64 %0, %0, %2;"
+       "}" : "+l"(a) : "l"(b), "l"(c) );
 #endif
-  return output;
 }
 
 __device__ __forceinline__
-auto chi( uint64_t const a, uint64_t const b, uint64_t const c ) -> uint64_t const
+auto theta_parity( uint64_t* __restrict__ t, uint64_t const* const __restrict__ s ) -> void
+{
+  xor5( t[1], &s[0] );
+  xor5( t[2], &s[1] );
+  xor5( t[3], &s[2] );
+  xor5( t[4], &s[3] );
+  xor5( t[0], &s[4] );
+}
+
+__device__ __forceinline__
+auto theta_xor( uint64_t* __restrict__ s, uint64_t const t, uint64_t& u, uint64_t const v ) -> void
+{
+  ROTL64( u, v, 1 );
+  xor3( s[ 0], u, t );
+  xor3( s[ 5], u, t );
+  xor3( s[10], u, t );
+  xor3( s[15], u, t );
+  xor3( s[20], u, t );
+}
+
+__device__ __forceinline__
+auto theta( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t* __restrict__ u ) -> void
+{
+  theta_parity( t, s );
+
+  theta_xor( &s[0], t[0], u[0], t[2] );
+  theta_xor( &s[1], t[1], u[1], t[3] );
+  theta_xor( &s[2], t[2], u[2], t[4] );
+  theta_xor( &s[3], t[3], u[3], t[0] );
+  theta_xor( &s[4], t[4], u[4], t[1] );
+}
+
+__device__ __forceinline__
+auto chi_single( uint64_t& output, uint64_t const a, uint64_t const b, uint64_t const c ) -> void
 {
 #if __CUDA_ARCH__ >= 500
-  uint64_t output;
   asm( "{"
        "  lop3.b32 %0, %2, %4, %6, 0xD2;"
        "  lop3.b32 %1, %3, %5, %7, 0xD2;"
-       "}" : "=r"(reinterpret_cast<uint2&>(output).x), "=r"(reinterpret_cast<uint2&>(output).y)
+       "}" : "+r"(reinterpret_cast<uint2&>(output).x), "+r"(reinterpret_cast<uint2&>(output).y)
            : "r"(reinterpret_cast<uint2 const&>(a).x), "r"(reinterpret_cast<uint2 const&>(a).y),
              "r"(reinterpret_cast<uint2 const&>(b).x), "r"(reinterpret_cast<uint2 const&>(b).y),
              "r"(reinterpret_cast<uint2 const&>(c).x), "r"(reinterpret_cast<uint2 const&>(c).y) );
-  return output;
 #else
-  return a ^ ((~b) & c);
+  output = a ^ ((~b) & c);
 #endif
 }
 
+__device__ __forceinline__
+auto chi_group( uint64_t* __restrict__ s, uint64_t const* const __restrict__ t ) -> void
+{
+  chi_single( s[0], t[0], t[1], t[2] );
+  chi_single( s[1], t[1], t[2], t[3] );
+  chi_single( s[2], t[2], t[3], t[4] );
+  chi_single( s[3], t[3], t[4], t[0] );
+  chi_single( s[4], t[4], t[0], t[1] );
+}
+
+__device__ __forceinline__
+auto chi( uint64_t* __restrict__ s, uint64_t* __restrict__ t ) -> void
+{
+  t[0] = s[0];
+  t[1] = s[1];
+  t[2] = s[2];
+  t[3] = s[3];
+  t[4] = s[4];
+  chi_group( s, t );
+}
+
+__device__ __forceinline__
+auto keccak_round( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t* __restrict__ u, uint64_t const rc ) -> void
+{
+  theta( s, t, u );
+  
+  t[0] = s[1];
+  ROTL64( s[ 1], s[ 6], 44 );
+  ROTL64( s[ 6], s[ 9], 20 );
+  ROTL64( s[ 9], s[22], 61 );
+  ROTL64( s[22], s[14], 39 );
+  ROTL64( s[14], s[20], 18 );
+  ROTL64( s[20], s[ 2], 62 );
+  ROTL64( s[ 2], s[12], 43 );
+  ROTL64( s[12], s[13], 25 );
+  ROTL64( s[13], s[19],  8 );
+  ROTL64( s[19], s[23], 56 );
+  ROTL64( s[23], s[15], 41 );
+  ROTL64( s[15], s[ 4], 27 );
+  ROTL64( s[ 4], s[24], 14 );
+  ROTL64( s[24], s[21],  2 );
+  ROTL64( s[21], s[ 8], 55 );
+  ROTL64( s[ 8], s[16], 45 );
+  ROTL64( s[16], s[ 5], 36 );
+  ROTL64( s[ 5], s[ 3], 28 );
+  ROTL64( s[ 3], s[18], 21 );
+  ROTL64( s[18], s[17], 15 );
+  ROTL64( s[17], s[11], 10 );
+  ROTL64( s[11], s[ 7],  6 );
+  ROTL64( s[ 7], s[10],  3 );
+  ROTL64( s[10], t[ 0],  1 );
+
+  chi( &s[ 0], t );
+  chi( &s[ 5], t );
+  chi( &s[10], t );
+  chi( &s[15], t );
+  chi( &s[20], t );
+
+  s[0] ^= rc;
+}
+
+__device__ __forceinline__
+auto keccak_first( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t const nounce ) -> void
+{
+  uint64_t n[11]{ 0 };
+  ROTL64( n[ 0], nounce, 7 );
+  ROTL64( n[ 1], n[0],  1 );
+  ROTL64( n[ 2], n[1],  6 );
+  ROTL64( n[ 3], n[2],  2 );
+  ROTL64( n[ 4], n[3],  4 );
+  ROTL64( n[ 5], n[4],  7 );
+  ROTL64( n[ 6], n[5], 12 );
+  ROTL64( n[ 7], n[6],  5 );
+  ROTL64( n[ 8], n[7], 11 );
+  ROTL64( n[ 9], n[8],  7 );
+  ROTL64( n[10], n[9],  1 );
+
+  t[0] = d_mid[0];
+  t[1] = d_mid[1];
+  t[2] = d_mid[2] ^ n[7];
+  t[3] = d_mid[3];
+  t[4] = d_mid[4] ^ n[2];
+  chi_group( &s[0], t );
+  s[0] ^= 0x0000000000000001ull;
+
+  t[0] = d_mid[5];
+  t[1] = d_mid[6] ^ n[4];
+  t[2] = d_mid[7];
+  t[3] = d_mid[8];
+  t[4] = d_mid[9] ^ n[9];
+  chi_group( &s[5], t );
+
+  t[0] = d_mid[10];
+  t[1] = d_mid[11] ^ n[0];
+  t[2] = d_mid[12];
+  t[3] = d_mid[13] ^ n[1];
+  t[4] = d_mid[14];
+  chi_group( &s[10], t );
+
+  t[0] = d_mid[15] ^ n[5];
+  t[1] = d_mid[16];
+  t[2] = d_mid[17];
+  t[3] = d_mid[18] ^ n[3];
+  t[4] = d_mid[19];
+  chi_group( &s[15], t );
+
+  t[0] = d_mid[20] ^ n[10];
+  t[1] = d_mid[21] ^ n[8];
+  t[2] = d_mid[22] ^ n[6];
+  t[3] = d_mid[23];
+  t[4] = d_mid[24];
+  chi_group( &s[20], t );
+}
 __global__
 void cuda_mine( uint64_t* __restrict__ solution, uint32_t* __restrict__ solution_count, uint64_t const threads )
 {
   uint64_t const nounce{ threads + (blockDim.x * blockIdx.x + threadIdx.x) };
 
   uint64_t state[25], C[5], D[5];
-  uint64_t n[11] { ROTL64(nounce,  7) };
-  n[ 1] = ROTL64(n[ 0],  1);
-  n[ 2] = ROTL64(n[ 1],  6);
-  n[ 3] = ROTL64(n[ 2],  2);
-  n[ 4] = ROTL64(n[ 3],  4);
-  n[ 5] = ROTL64(n[ 4],  7);
-  n[ 6] = ROTL64(n[ 5], 12);
-  n[ 7] = ROTL64(n[ 6],  5);
-  n[ 8] = ROTL64(n[ 7], 11);
-  n[ 9] = ROTL64(n[ 8],  7);
-  n[10] = ROTL64(n[ 9],  1);
 
-  C[0] = d_mid[ 0];
-  C[1] = d_mid[ 1];
-  C[2] = d_mid[ 2] ^ n[ 7];
-  C[3] = d_mid[ 3];
-  C[4] = d_mid[ 4] ^ n[ 2];
-  state[ 0] = chi( C[0], C[1], C[2] ) ^ RC[0];
-  state[ 1] = chi( C[1], C[2], C[3] );
-  state[ 2] = chi( C[2], C[3], C[4] );
-  state[ 3] = chi( C[3], C[4], C[0] );
-  state[ 4] = chi( C[4], C[0], C[1] );
-
-  C[0] = d_mid[ 5];
-  C[1] = d_mid[ 6] ^ n[ 4];
-  C[2] = d_mid[ 7];
-  C[3] = d_mid[ 8];
-  C[4] = d_mid[ 9] ^ n[ 9];
-  state[ 5] = chi( C[0], C[1], C[2] );
-  state[ 6] = chi( C[1], C[2], C[3] );
-  state[ 7] = chi( C[2], C[3], C[4] );
-  state[ 8] = chi( C[3], C[4], C[0] );
-  state[ 9] = chi( C[4], C[0], C[1] );
-
-  C[0] = d_mid[10];
-  C[1] = d_mid[11] ^ n[ 0];
-  C[2] = d_mid[12];
-  C[3] = d_mid[13] ^ n[ 1];
-  C[4] = d_mid[14];
-  state[10] = chi( C[0], C[1], C[2] );
-  state[11] = chi( C[1], C[2], C[3] );
-  state[12] = chi( C[2], C[3], C[4] );
-  state[13] = chi( C[3], C[4], C[0] );
-  state[14] = chi( C[4], C[0], C[1] );
-
-  C[0] = d_mid[15] ^ n[ 5];
-  C[1] = d_mid[16];
-  C[2] = d_mid[17];
-  C[3] = d_mid[18] ^ n[ 3];
-  C[4] = d_mid[19];
-  state[15] = chi( C[0], C[1], C[2] );
-  state[16] = chi( C[1], C[2], C[3] );
-  state[17] = chi( C[2], C[3], C[4] );
-  state[18] = chi( C[3], C[4], C[0] );
-  state[19] = chi( C[4], C[0], C[1] );
-
-  C[0] = d_mid[20] ^ n[10];
-  C[1] = d_mid[21] ^ n[ 8];
-  C[2] = d_mid[22] ^ n[ 6];
-  C[3] = d_mid[23];
-  C[4] = d_mid[24];
-  state[20] = chi( C[0], C[1], C[2] );
-  state[21] = chi( C[1], C[2], C[3] );
-  state[22] = chi( C[2], C[3], C[4] );
-  state[23] = chi( C[3], C[4], C[0] );
-  state[24] = chi( C[4], C[0], C[1] );
+  keccak_first( state, C, nounce );
 
 #if __CUDA_ARCH__ >= 350
-#  pragma unroll
-#endif
-  for( uint_fast8_t i{ 1 }; i < 23; ++i )
-  {
-    for( uint_fast8_t x{ 0 }; x < 5; ++x )
-    {
-      C[(x + 6) % 5] = xor5( state[x], state[x + 5], state[x + 10], state[x + 15], state[x + 20] );
-    }
-
-#if __CUDA_ARCH__ >= 350
-    for( uint_fast8_t x{ 0 }; x < 5; ++x )
-    {
-			D[x] = ROTL64(C[(x + 2) % 5], 1);
-      state[x]      = xor3( state[x]     , D[x], C[x] );
-      state[x +  5] = xor3( state[x +  5], D[x], C[x] );
-      state[x + 10] = xor3( state[x + 10], D[x], C[x] );
-      state[x + 15] = xor3( state[x + 15], D[x], C[x] );
-      state[x + 20] = xor3( state[x + 20], D[x], C[x] );
-    }
+  keccak_round( state, C, D, 0x0000000000008082ull );
+  keccak_round( state, C, D, 0x800000000000808aull );
+  keccak_round( state, C, D, 0x8000000080008000ull );
+  keccak_round( state, C, D, 0x000000000000808bull );
+  keccak_round( state, C, D, 0x0000000080000001ull );
+  keccak_round( state, C, D, 0x8000000080008081ull );
+  keccak_round( state, C, D, 0x8000000000008009ull );
+  keccak_round( state, C, D, 0x000000000000008aull );
+  keccak_round( state, C, D, 0x0000000000000088ull );
+  keccak_round( state, C, D, 0x0000000080008009ull );
+  keccak_round( state, C, D, 0x000000008000000aull );
+  keccak_round( state, C, D, 0x000000008000808bull );
+  keccak_round( state, C, D, 0x800000000000008bull );
+  keccak_round( state, C, D, 0x8000000000008089ull );
+  keccak_round( state, C, D, 0x8000000000008003ull );
+  keccak_round( state, C, D, 0x8000000000008002ull );
+  keccak_round( state, C, D, 0x8000000000000080ull );
+  keccak_round( state, C, D, 0x000000000000800aull );
+  keccak_round( state, C, D, 0x800000008000000aull );
+  keccak_round( state, C, D, 0x8000000080008081ull );
+  keccak_round( state, C, D, 0x8000000000008080ull );
+  keccak_round( state, C, D, 0x0000000080000001ull );
 #else
-    for( uint_fast8_t x{ 0 }; x < 5; ++x )
-    {
-      D[x] = ROTL64(C[(x + 2) % 5], 1) ^ C[x];
-      state[x]      = state[x]      ^ D[x];
-      state[x +  5] = state[x +  5] ^ D[x];
-      state[x + 10] = state[x + 10] ^ D[x];
-      state[x + 15] = state[x + 15] ^ D[x];
-      state[x + 20] = state[x + 20] ^ D[x];
-    }
-#endif
-
-    C[0] = state[1];
-    state[ 1] = ROTR64( state[ 6], 20 );
-    state[ 6] = ROTL64( state[ 9], 20 );
-    state[ 9] = ROTR64( state[22],  3 );
-    state[22] = ROTR64( state[14], 25 );
-    state[14] = ROTL64( state[20], 18 );
-    state[20] = ROTR64( state[ 2],  2 );
-    state[ 2] = ROTR64( state[12], 21 );
-    state[12] = ROTL64( state[13], 25 );
-    state[13] = ROTL64( state[19],  8 );
-    state[19] = ROTR64( state[23],  8 );
-    state[23] = ROTR64( state[15], 23 );
-    state[15] = ROTL64( state[ 4], 27 );
-    state[ 4] = ROTL64( state[24], 14 );
-    state[24] = ROTL64( state[21],  2 );
-    state[21] = ROTR64( state[ 8],  9 );
-    state[ 8] = ROTR64( state[16], 19 );
-    state[16] = ROTR64( state[ 5], 28 );
-    state[ 5] = ROTL64( state[ 3], 28 );
-    state[ 3] = ROTL64( state[18], 21 );
-    state[18] = ROTL64( state[17], 15 );
-    state[17] = ROTL64( state[11], 10 );
-    state[11] = ROTL64( state[ 7],  6 );
-    state[ 7] = ROTL64( state[10],  3 );
-    state[10] = ROTL64( C[0], 1 );
-
-    for( uint_fast8_t x{ 0 }; x < 25; x += 5 )
-    {
-      C[0] = state[x];
-      C[1] = state[x + 1];
-      C[2] = state[x + 2];
-      C[3] = state[x + 3];
-      C[4] = state[x + 4];
-      state[x]     = chi( C[0], C[1], C[2] );
-      state[x + 1] = chi( C[1], C[2], C[3] );
-      state[x + 2] = chi( C[2], C[3], C[4] );
-      state[x + 3] = chi( C[3], C[4], C[0] );
-      state[x + 4] = chi( C[4], C[0], C[1] );
-    }
-
-    state[0] = state[0] ^ RC[i];
-  }
-
-  for( uint_fast8_t x{ 0 }; x < 5; ++x )
+  for( int32_t i = 0; i < 22; ++i )
   {
-    C[(x + 6) % 5 ] = xor5( state[x], state[x + 5], state[x + 10], state[x + 15], state[x + 20] );
+    keccak_round( state, C, D, RC[i] );
   }
+#endif // __CUDA_ARCH__ >= 350
 
-  D[0] = ROTL64(C[2], 1);
-  D[1] = ROTL64(C[3], 1);
-  D[2] = ROTL64(C[4], 1);
+  theta_parity( C, state );
 
-  state[ 0] = xor3( state[ 0], D[0], C[0] );
-  state[ 6] = xor3( state[ 6], D[1], C[1] );
-  state[12] = xor3( state[12], D[2], C[2] );
-  state[ 6] = ROTR64(state[ 6], 20);
-  state[12] = ROTR64(state[12], 21);
+  ROTL64( D[0], C[2], 1 );
+  ROTL64( D[1], C[3], 1 );
+  ROTL64( D[2], C[4], 1 );
 
-  state[ 0] = chi( state[ 0], state[ 6], state[12] ) ^ RC[23];
+  xor3( state[ 0], D[0], C[0] );
+  xor3( state[ 6], D[1], C[1] );
+  xor3( state[12], D[2], C[2] );
+  ROTL64( state[ 6], state[ 6], 44 );
+  ROTL64( state[12], state[12], 43 );
+
+  chi_single( state[0], state[0], state[6], state[12] );
+  state[0] ^= 0x8000000080008008ull;
 
   if( bswap_64( state[0] ) <= d_target )
   {
@@ -405,16 +424,28 @@ auto CUDASolver::findSolution() -> void
     if( m_new_message ) { pushMessage(); }
 
     cuda_mine <<< m_grid, m_block >>> ( d_solutions, d_solution_count, getNextSearchSpace() );
-
-    cudaError_t cudaerr = cudaDeviceSynchronize();
-    if( cudaerr != cudaSuccess )
+    cudaError_t syncErr = cudaGetLastError();
+    cudaError_t asyncErr = cudaDeviceSynchronize();
+    if( syncErr | asyncErr != cudaSuccess )
     {
-      std::cerr << "Kernel launch failed with error "
-                << cudaerr
-                << ": \x1b[38;5;196m"
-                << cudaGetErrorString( cudaerr )
-                << ".\x1b[0m\n"
-                << "Check your hardware configuration.\n";
+      if( syncErr )
+      {
+        std::cerr << "Kernel launch encountered synchronous error "
+                  << syncErr
+                  << ": \x1b[38;5;196m"
+                  << cudaGetErrorString( syncErr )
+                  << ".\x1b[0m\n"
+                  << "Check your hardware configuration.\n";
+      }
+      if( asyncErr )
+      {
+        std::cerr << "Kernel launch encountered asynchronous error "
+                  << asyncErr
+                  << ": \x1b[38;5;196m"
+                  << cudaGetErrorString( asyncErr )
+                  << ".\x1b[0m\n"
+                  << "Check your hardware configuration.\n";
+      }
       exit( EXIT_FAILURE );
     }
 

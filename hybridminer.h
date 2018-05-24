@@ -6,9 +6,13 @@
 #ifndef  _HYBRIDMINER_H_
 #define  _HYBRIDMINER_H_
 
+#include "types.h"
 #include <vector>
+#include <string_view>
 
-char constexpr MINER_VERSION[] = "1.0.0";
+using namespace std::string_view_literals;
+
+std::string_view constexpr MINER_VERSION{ "Nabiki v0.9.0"sv };
 
 namespace HybridMiner
 {
@@ -19,6 +23,8 @@ namespace HybridMiner
   auto stop() -> void;
 
   auto getHashrates() -> std::vector<double> const;
+  auto getTemperatures()-> std::vector<uint32_t> const;
+  auto getDeviceStates() -> std::vector<device_info_t> const;
 };
 
 #endif // ! _CPUMINER_H_

@@ -8,7 +8,7 @@
 using namespace std::literals::string_literals;
 using namespace std::chrono;
 
-CLSolver::CLSolver( cl::Device const device, double const intensity ) noexcept :
+CLSolver::CLSolver( cl::Device const &device, double const intensity ) noexcept :
 m_stop( false ),
 m_stopped( false ),
 m_new_target( true ),
@@ -40,22 +40,33 @@ auto CLSolver::getHashrate() const -> double const
   return m_hash_average;
 }
 
+// OpenCL device temp - how?
+auto CLSolver::getTemperature() const -> uint32_t const
+{
+  return 0;
+}
+
+auto CLSolver::getDeviceState() const -> device_info_t const
+{
+  return { ""s, 0, 0, 0, 0, 0, 0 };
+}
+
 auto CLSolver::clInit() -> void
 {
   if( m_gpu_initialized ) return;
 
   cl_int error;
 
-  m_context = cl::Context( m_device,(cl_context_properties*)0, (void (__stdcall*)(const char*,const void*, size_t,void*))0, (void*)0,&error );
+  m_context = cl::Context( m_device, NULL, NULL, NULL, &error );
   m_queue = cl::CommandQueue( m_context, 0, &error );
 
   m_platform = m_device.getInfo<CL_DEVICE_PLATFORM>();
   std::string platform_name{ m_platform.getInfo<CL_PLATFORM_NAME>() };
-  d_solution_count = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE, 256 * 8, &error );
-  d_solutions = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE, 8, &error );
-  d_mid = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE, 25 * 8, &error );
-  d_target = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE, 8, &error );
-  d_threads = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE, 8, &error );
+  d_solution_count = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE|CL_MEM_ALLOC_HOST_PTR, 256 * 8, NULL, &error );
+  d_solutions = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_WRITE|CL_MEM_ALLOC_HOST_PTR, 8, NULL, &error );
+  d_mid = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_ONLY|CL_MEM_ALLOC_HOST_PTR, 25 * 8, NULL, &error );
+  d_target = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_ONLY|CL_MEM_ALLOC_HOST_PTR, 8, NULL, &error );
+  d_threads = cl::Buffer( m_context, (cl_mem_flags)CL_MEM_READ_ONLY|CL_MEM_ALLOC_HOST_PTR, 8, NULL, &error );
 
   cl::Program::Sources sources;
 
@@ -67,10 +78,10 @@ auto CLSolver::clInit() -> void
   std::string options{};
   if( platform_name.find( "NVIDIA" ) != std::string::npos )
   {
-    compute_version = compute_version = m_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV>( &error ) * 100;
+    compute_version = m_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV>( &error ) * 100;
     compute_version += ( m_device.getInfo<CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV>() * 10 );
 
-    m_local_work_size = compute_version > 500u ? 1024u : 384u;
+    //m_local_work_size = compute_version > 500u ? 1024u : 384u;
 
     options = "-DCUDA_VERSION="s + std::to_string( compute_version );
   }
@@ -83,12 +94,12 @@ auto CLSolver::clInit() -> void
 
   m_kernel = cl::Kernel( m_program, "cl_mine", &error );
 
-  if( compute_version == 0u )
-  {
+  //if( compute_version == 0u )
+  //{
     m_local_work_size = m_kernel.getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>( m_device, &error );
-  }
-  m_global_work_size = ( m_threads + m_local_work_size[0] - 1 ) / m_local_work_size[0];
-
+  //}
+  m_global_work_size = m_threads;
+  MinerState::pushLog( std::to_string( *m_local_work_size ) );
   clResetSolution();
 
   m_gpu_initialized = true;
@@ -122,7 +133,7 @@ auto CLSolver::clResetSolution() -> void
 auto CLSolver::pushMessage() -> void
 {
   state_t message{ MinerState::getMidstate() };
-  cl_int error = m_queue.enqueueWriteBuffer( d_mid, CL_TRUE, 0, 25 * 8, message.data() );
+  cl_int error = m_queue.enqueueWriteBuffer( d_mid, CL_TRUE, 0, 200, message.data() );
   if( error != CL_SUCCESS )
   {
     MinerState::pushLog( "OpenCL error #"s + std::to_string( error ) + " in pushMessage"s );
@@ -159,7 +170,7 @@ auto CLSolver::findSolution() -> void
     cl_ulong temp = getNextSearchSpace();
     m_kernel.setArg( 4, temp );
 
-    m_queue.enqueueNDRangeKernel( m_kernel, 0, m_global_work_size, m_local_work_size );
+    m_queue.enqueueNDRangeKernel( m_kernel, 1, m_global_work_size, m_local_work_size );
 
     //cudaError_t cudaerr = cudaDeviceSynchronize();
     //if( cudaerr != cudaSuccess )
@@ -190,10 +201,8 @@ auto CLSolver::findSolution() -> void
     //  continue;
     //}
 
-    m_queue.enqueueReadBuffer( d_solutions, CL_TRUE, 0, 256 * 8, &h_solutions );
-    m_queue.enqueueReadBuffer( d_solution_count, CL_TRUE, 0, 8, &h_solution_count );
-
-    m_queue.finish();
+    memcpy( h_solutions, m_queue.enqueueMapBuffer( d_solutions, CL_FALSE, CL_MAP_READ, 0, 256 * 8 ), 256 * 8 );
+    h_solution_count = *static_cast<uint64_t*>( m_queue.enqueueMapBuffer( d_solution_count, CL_FALSE, CL_MAP_READ, 0, 8 ) );
 
     if( h_solution_count > 0u )
     {

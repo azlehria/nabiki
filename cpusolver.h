@@ -19,6 +19,8 @@ public:
   auto findSolution() -> void final;
 
   auto getHashrate() const -> double const final;
+  auto getTemperature() const -> uint32_t const final;
+  auto getDeviceState() const -> device_info_t const final;
 
   auto updateTarget() -> void final;
   auto updateMessage() -> void final;

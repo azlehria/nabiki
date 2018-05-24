@@ -89,6 +89,22 @@ auto CPUSolver::findSolution() -> void
   m_stopped = true;
 }
 
+auto CPUSolver::getHashrate() const -> double const
+{
+  return m_hash_average;
+}
+
+// XP CPU temp - how?
+auto CPUSolver::getTemperature() const -> uint32_t const
+{
+  return 0;
+}
+
+auto CPUSolver::getDeviceState() const -> device_info_t const
+{
+  return { ""s, 0, 0, 0, 0, 0, 0 };
+}
+
 auto CPUSolver::updateTarget() -> void
 {
   m_new_target = true;
@@ -98,14 +114,9 @@ auto CPUSolver::updateMessage() -> void
   m_new_message = true;
 }
 
-auto CPUSolver::getHashrate() const -> double const
-{
-  return m_hash_average;
-}
-
 auto CPUSolver::getNextSearchSpace() -> uint64_t const
 {
-  m_hash_count++;
+  ++m_hash_count;
   double t{ static_cast<double>(duration_cast<milliseconds>(steady_clock::now() - m_start).count()) / 1000 };
 
   if( m_hash_count_samples < 100 )

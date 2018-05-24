@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cuda_runtime_api.h>
 #include "cudasolver.h"
 
 // don't put this in the header . . .
@@ -22,6 +23,15 @@ m_device( device ),
 m_grid( 1u ),
 m_block( 1u )
 {
+  nvmlInit();
+  char busId[13];
+  cudaDeviceGetPCIBusId( busId, 13, device );
+  nvmlDeviceGetHandleByPciBusId( busId, &m_nvml_handle );
+
+  char t_name[256u];
+  nvmlDeviceGetName( m_nvml_handle, t_name, 256u );
+  m_name = std::string( t_name );
+
   m_run_thread = std::thread( &CUDASolver::findSolution, this );
 }
 
@@ -33,12 +43,36 @@ CUDASolver::~CUDASolver()
     std::this_thread::sleep_for( 1ms );
   }
   cudaCleanup();
+  nvmlShutdown();
   m_run_thread.join();
 }
 
 auto CUDASolver::getHashrate() const -> double const
 {
-  return m_hash_average;
+  return m_hash_average / 1000;
+}
+
+auto CUDASolver::getTemperature() const -> uint32_t const
+{
+  uint32_t t_temp;
+  nvmlDeviceGetTemperature( m_nvml_handle, NVML_TEMPERATURE_GPU, &t_temp );
+  return t_temp;
+}
+
+auto CUDASolver::getDeviceState() const -> device_info_t const
+{
+  uint32_t t_core;
+  nvmlDeviceGetClockInfo( m_nvml_handle, NVML_CLOCK_GRAPHICS, &t_core );
+  uint32_t t_memory;
+  nvmlDeviceGetClockInfo( m_nvml_handle, NVML_CLOCK_MEM, &t_memory );
+  uint32_t t_power;
+  nvmlDeviceGetPowerUsage( m_nvml_handle, &t_power );
+  uint32_t t_temp;
+  nvmlDeviceGetTemperature( m_nvml_handle, NVML_TEMPERATURE_GPU, &t_temp );
+  uint32_t t_fan;
+  nvmlDeviceGetFanSpeed( m_nvml_handle, &t_fan );
+
+  return { m_name, t_core, t_memory, t_power / 1000, t_temp, t_fan, m_hash_average };
 }
 
 auto CUDASolver::updateTarget() -> void
@@ -67,7 +101,7 @@ auto CUDASolver::getNextSearchSpace() -> uint64_t const
   }
 
   double temp_average{ m_hash_average };
-  temp_average += ((m_hash_count / t) / 1000000 - temp_average) / m_hash_count_samples;
+  temp_average += ((m_hash_count / t) / 1000 - temp_average) / m_hash_count_samples;
   if( std::isnan( temp_average ) || std::isinf( temp_average ) )
   {
     temp_average = m_hash_average;

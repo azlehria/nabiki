@@ -7,16 +7,16 @@ CC			= gcc $(CPPFLAGS) $(CFLAGS) -c
 CXX			= g++ $(CPPFLAGS) $(CXXFLAGS) -c
 
 CPATH		:= /usr/local/include:.:$(CPATH)
-CPPFLAGS	+= -DNDEBUG -DJSON_STRIP_COMMENTS -DSPH_KECCAK_UNROLL=4 -DSPH_KECCAK_NOCOPY
+CPPFLAGS	+= -DNDEBUG -DJSON_STRIP_COMMENTS -DSPH_KECCAK_UNROLL=4 -DSPH_KECCAK_NOCOPY -DCURL_NO_OLDIES
 CFLAGS		+= -O3 -m64 -Wall -Wextra -Wno-unused-parameter -pthread -fPIC -fno-omit-frame-pointer
-CXXFLAGS	+= $(CFLAGS) -std=c++14 -fno-rtti
+CXXFLAGS	+= $(CFLAGS) -std=c++17 -fno-rtti
 
 LD			= g++ $(LDFLAGS)
-LDFLAGS		+= $(CPPFLAGS) $(CXXFLAGS) -rdynamic -L/usr/local/cuda/lib64
-LD_LIBS		+= -lcudart_static -lcurl -lOpenCL -ldl -lrt
+LDFLAGS		+= $(CPPFLAGS) $(CXXFLAGS) -rdynamic -L/usr/local/cuda/lib64 -L/usr/local/cuda/lib64/stubs
+LD_LIBS		+= -lcudart_static -lcurl -lOpenCL -ldl -lrt -lnvidia-ml
 
 NVCC		= nvcc $(NVCCFLAGS)
-NVCCFLAGS 	+= -std=c++14 -m64 -Xcompiler="$(CPPFLAGS) $(CXXFLAGS)" $(nvcc_ARCH) -c
+NVCCFLAGS 	+= -std=c++17 -m64 -Xcompiler="$(CPPFLAGS) $(CXXFLAGS)" $(nvcc_ARCH) -c
 nvcc_ARCH 	+= -gencode=arch=compute_70,code=\"sm_70,compute_70\"
 nvcc_ARCH 	+= -gencode=arch=compute_61,code=\"sm_61,compute_61\"
 nvcc_ARCH 	+= -gencode=arch=compute_52,code=\"sm_52,compute_52\"
@@ -32,7 +32,7 @@ OBJS		:= $(CU_SRCS:%.cu=$(OBJDIR)/%.cu.o) $(CC_SRCS:%.cpp=$(OBJDIR)/%.o) $(C_SRC
 all: $(TARGET)
 
 package: distfiles
-	@tar cJf $(TARGET)-$(shell grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' hybridminer.h)-linux.tar.xz -C dist .
+	@tar cJf $(TARGET)-linux-$(shell grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' hybridminer.h).tar.xz -C dist .
 
 distfiles: all
 	cp $(TARGET).json $(OUTDIR)

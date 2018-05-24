@@ -1,5 +1,6 @@
 #define __STDC_WANT_LIB_EXT1__ 1
 
+#include "platforms.h"
 #include "miner_state.h"
 #include "hybridminer.h"
 #include "json.hpp"
@@ -20,13 +21,10 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#include <string>
+#include <string_view>
 #include <algorithm>
 #include <cuda_runtime.h>
-
-#ifdef _MSC_VER
-#  define WIN32_LEAN_AND_MEAN
-#  include <windows.h>
-#endif // _MSC_VER
 
 #ifdef __GNUC__
 #  pragma GCC diagnostic push
@@ -42,15 +40,14 @@
 #endif // __GNUC__
 
 using namespace std::literals::string_literals;
+using namespace std::literals::string_view_literals;
 using namespace std::chrono;
 
 typedef std::lock_guard<std::mutex> guard;
 
 namespace
 {
-  static uint_fast8_t constexpr PREFIX_LENGTH{ 52u };
-  static uint_fast8_t constexpr UINT256_LENGTH{ 32u };
-  static uint_fast8_t constexpr MESSAGE_LENGTH{ 84u };
+  static size_t constexpr UINT256_LENGTH{ 64u };
   static double constexpr DEFAULT_INTENSITY{ 23.0 };
   static char constexpr ascii[][3] = {
     "00","01","02","03","04","05","06","07","08","09","0a","0b","0c","0d","0e","0f",
@@ -70,6 +67,45 @@ namespace
     "e0","e1","e2","e3","e4","e5","e6","e7","e8","e9","ea","eb","ec","ed","ee","ef",
     "f0","f1","f2","f3","f4","f5","f6","f7","f8","f9","fa","fb","fc","fd","fe","ff"
   };
+
+  static std::mutex m_solutions_mutex;
+  static std::queue<uint64_t> m_solutions_queue;
+  static hash_t m_solution;
+  static std::atomic<uint64_t> m_hash_count{ 0ull };
+  static std::atomic<uint64_t> m_hash_count_printable{ 0ull };
+  static message_t m_message;
+  static hash_t m_challenge_old;
+  static std::mutex m_message_mutex;
+  static std::atomic<bool> m_challenge_ready{ false };
+  static std::atomic<bool> m_pool_address_ready{ false };
+  static std::atomic<uint64_t> m_sol_count{ 0ull };
+  static std::mutex m_print_mutex;
+  static std::queue<std::string> m_log;
+  static std::mutex m_log_mutex;
+  static std::string m_challenge_printable;
+  static std::string m_address_printable;
+  static std::atomic<uint64_t> m_target_num{ 0ull };
+  static BigUnsigned m_target{ 0ull };
+  static BigUnsigned m_maximum_target{ 1ull };
+  static std::mutex m_target_mutex;
+  static std::atomic<bool> m_custom_diff{ false };
+  static std::atomic<uint64_t> m_diff{ 1ull };
+  static std::atomic<bool> m_diff_ready{ false };
+  static std::atomic<bool> m_new_solution{ false };
+  static std::string m_address;
+  static std::mutex m_address_mutex;
+  static std::string m_pool_url;
+  static std::mutex m_pool_url_mutex;
+  static steady_clock::time_point m_start;
+  static steady_clock::time_point m_end;
+  static steady_clock::time_point m_round_start;
+  static device_list_t m_cuda_devices;
+  static device_map_t m_opencl_devices;
+  static std::atomic<uint32_t> m_cpu_threads{ 0ul };
+  static nlohmann::json m_json_config;
+  static std::string m_token_name{ "0xBTC" };
+  static std::atomic<bool> m_submit_stale{ false };
+  static std::atomic<bool> m_debug{ false };
 
   static auto fromAscii( uint8_t const c ) -> uint8_t
   {
@@ -96,42 +132,72 @@ namespace
     }
   }
 
-  static std::mutex m_solutions_mutex;
-  static std::queue<uint64_t> m_solutions_queue;
-  static hash_t m_solution;
-  static std::atomic<uint64_t> m_hash_count{ 0ull };
-  static std::atomic<uint64_t> m_hash_count_printable{ 0ull };
-  static message_t m_message;
-  static hash_t m_challenge_old;
-  static std::mutex m_message_mutex;
-  static std::atomic<bool> m_message_ready{ false };
-  static std::atomic<uint64_t> m_sol_count{ 0ull };
-  static std::mutex m_print_mutex;
-  static std::queue<std::string> m_log;
-  static std::mutex m_log_mutex;
-  static std::string m_challenge_printable;
-  static std::string m_address_printable;
-  static std::atomic<uint64_t> m_target_num{ 0ull };
-  static BigUnsigned m_target{ 0ul };
-  static BigUnsigned m_maximum_target{ 1ul };
-  static std::mutex m_target_mutex;
-  static std::atomic<bool> m_custom_diff{ false };
-  static std::atomic<uint64_t> m_diff{ 1ull };
-  static std::atomic<bool> m_diff_ready{ false };
-  static std::atomic<bool> m_new_solution{ false };
-  static std::string m_address;
-  static std::mutex m_address_mutex;
-  static std::string m_pool_url;
-  static std::mutex m_pool_url_mutex;
-  static steady_clock::time_point m_start;
-  static steady_clock::time_point m_end;
-  static steady_clock::time_point m_round_start;
-  static std::atomic<bool> m_old_ui{ false };
-  static std::vector<std::pair<int32_t, double>> m_cuda_devices;
-  static std::atomic<uint32_t> m_cpu_threads{ 0ul };
-  static nlohmann::json m_json_config;
-  static std::string m_token_name{ "0xBTC" };
-  static std::atomic<bool> m_submit_stale{ false };
+  static auto printUiOldWindows( double const& timer, double const& hashrate ) -> std::string
+  {
+    std::stringstream ss_out;
+    // print every every 5 seconds . . . more or less
+    static auto time_counter{ steady_clock::now() + 5s };
+    if( time_counter > steady_clock::now() ) return ""s;
+    time_counter = steady_clock::now() + 5s;
+
+    ss_out << MinerState::getPrintableTimeStamp()
+      << std::setw( 10 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
+      << hashrate
+      << " MH/s  Sols:"
+      << std::setw( 6 ) << std::setfill( ' ' ) << m_sol_count
+      << ( m_new_solution ? '^' : ' ' )
+      << " Search time: "
+      << std::fixed << std::setprecision( 0 ) << std::setfill( '0' )
+      << std::setw( 2 ) << std::floor( timer / 60 ) << ":"
+      << std::setw( 2 ) << std::floor( std::fmod( timer, 60 ) )
+      << '\n';
+
+    m_new_solution = false;
+
+    return ss_out.str();
+  }
+  static auto printUi( double const& timer, double const& hashrate ) -> std::string
+  {
+    std::stringstream ss_out;
+    // maybe breaking the control codes into macros is a good idea . . .
+    ss_out << "\x1b[s\x1b[?25l\x1b[2;22f\x1b[38;5;221m"sv
+      << std::setw( 8 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
+      << hashrate
+      << "\x1b[2;75f\x1b[38;5;33m"sv
+      << std::fixed << std::setprecision( 0 ) << std::setfill( '0' )
+      << std::setw( 2 ) << std::floor( timer / 60 ) << ":"
+      << std::setw( 2 ) << std::floor( std::fmod( timer, 60 ) )
+      << "\x1b[3;14f\x1b[38;5;34m"sv
+      << m_diff
+      << "\x1b[3;22f\x1b[38;5;221m"sv
+      << std::setw( 8 ) << std::setfill( ' ' ) << m_sol_count
+      << "\x1b[3;72f\x1b[38;5;33m"sv;
+    {
+      guard lock( m_print_mutex );
+      ss_out << m_address_printable
+        << "\x1b[2;13f\x1b[38;5;34m"sv
+        << m_challenge_printable;
+    }
+    if( m_debug )
+    {
+      uint_fast32_t line{ 5u };
+      for( auto& device : HybridMiner::getDeviceStates() )
+      {
+        ss_out << "\x1b[0m\x1b[" << line << ";0f" << device.name.substr( 12 )
+          << "\x1b[" << line << ";9f" << device.temperature << " C"
+          << std::setw( 10 ) << std::setprecision( 2 ) << device.hashrate/1000
+          << " MH/s\t" << device.core << " MHz\t" << device.memory << " MHz\t"
+          << std::setw( 3 ) << device.fan << "%\t" << device.power << "W\n";
+        ++line;
+      }
+    }
+    ss_out.imbue( std::locale( "" ) );
+    ss_out << "\x1b[3;36f\x1b[38;5;208m"sv
+      << std::setw( 25 ) << m_hash_count_printable
+      << "\x1b[0m\x1b[u\x1b[?25h"sv;
+
+    return ss_out.str();
+  }
 };
 
 // --------------------------------------------------------------------
@@ -141,7 +207,7 @@ auto MinerState::initState() -> void
   std::ifstream in( "nabiki.json" );
   if( !in )
   {
-    std::cerr << "Unable to open configuration file '0xbitcoin.json'.\n"s;
+    std::cerr << "Unable to open configuration file '0xbitcoin.json'.\n"sv;
     std::exit( EXIT_FAILURE );
   }
 
@@ -152,14 +218,14 @@ auto MinerState::initState() -> void
       ( m_json_config["address"].is_string() &&
         m_json_config["address"].get<std::string>().length() != 42 ) )
   {
-    std::cerr << "No valid wallet address set in configuration - how are you supposed to get paid?\n"s;
+    std::cerr << "No valid wallet address set in configuration - how are you supposed to get paid?\n"sv;
     std::exit( EXIT_FAILURE );
   }
   if( m_json_config.find( "pool" ) == m_json_config.end() ||
       ( m_json_config["pool"].is_string() &&
         m_json_config["pool"].get<std::string>().length() < 15 ) )
   {
-    std::cerr << "No pool address set in configuration - this isn't a solo miner!\n"s;
+    std::cerr << "No pool address set in configuration - this isn't a solo miner!\n"sv;
     std::exit( EXIT_FAILURE );
   }
 
@@ -189,6 +255,12 @@ auto MinerState::initState() -> void
       m_json_config["submitstale"].is_boolean() )
   {
     MinerState::setSubmitStale( m_json_config["submitstale"].get<bool>() );
+  }
+
+  if( m_json_config.find( "debug" ) != m_json_config.end() &&
+      m_json_config["debug"].is_boolean() )
+  {
+    m_debug = m_json_config["debug"].get<bool>();
   }
 
   int32_t device_count;
@@ -223,6 +295,41 @@ auto MinerState::initState() -> void
     }
   }
 
+  if( m_json_config.find( "opencl" ) != m_json_config.end() &&
+      m_json_config["opencl"].is_object() &&
+      m_json_config["opencl"].size() > 0u )
+  {
+    for( auto& platform : { "amd"s, "nvidia"s, "intel"s } )
+    {
+      if( m_json_config["opencl"][platform].is_object() && m_json_config["opencl"][platform].size() > 0u )
+      {
+        device_list_t devices;
+
+        for( auto& device : m_json_config["opencl"][platform] )
+        {
+          if( ( device.find( "enabled" ) != device.end() &&
+                device["enabled"].is_boolean() &&
+                device["enabled"].get<bool>() ) &&
+                ( device.find( "device" ) != device.end() &&
+                  device["device"].is_number_integer() &&
+                  device["device"].get<int32_t>() < device_count ) )
+          {
+            devices.emplace_back( device["device"],
+                                  ( ( device.find( "intensity" ) != device.end() &&
+                                      device["intensity"].is_number_float() )
+                                    ? device["intensity"].get<double>()
+                                    : DEFAULT_INTENSITY ) );
+          }
+        }
+
+        if( devices.size() > 0u )
+        {
+          m_opencl_devices.emplace_back( platform, devices );
+        }
+      }
+    }
+  }
+
   if( m_json_config.find( "threads" ) != m_json_config.end() &&
       m_json_config["threads"].is_number() &&
       m_json_config["threads"].get<uint32_t>() > 0)
@@ -240,30 +347,6 @@ auto MinerState::initState() -> void
   {
     reinterpret_cast<uint64_t&>(m_solution[i_rand]) = urInt( gen );
   }
-
-  // Default init (false) is fine for non-Windows plats
-#ifdef _MSC_VER
-  m_old_ui = []() -> bool
-    {
-      OSVERSIONINFO winVer;
-      ZeroMemory( &winVer, sizeof(OSVERSIONINFO) );
-      winVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-
-      // Stop deprecating things you don't have a _full_ replacement for!
-#pragma warning( push )
-#pragma warning( disable: 4996 )
-      GetVersionEx( &winVer );
-#pragma warning( pop )
-
-      if( ( winVer.dwMajorVersion < 10 ) ||
-          ( winVer.dwMajorVersion >= 10 &&
-            winVer.dwBuildNumber < 14392 ) )
-      {
-        return true;
-      }
-      return false;
-    }();
-#endif // _MSC_VER
 
   std::memset( &m_solution[12], 0, 8 );
 
@@ -295,9 +378,7 @@ auto MinerState::printStatus() -> void
 {
   if( m_hash_count <= 0 ) return;
 
-  double timer{ static_cast<double>(duration_cast<milliseconds>(steady_clock::now() - m_round_start).count()) / 1000 };
-
-  std::stringstream ss_out;
+  double timer{ static_cast<double>( duration_cast<milliseconds>( steady_clock::now() - m_round_start ).count() ) / 1000 };
 
   double hashrate{ 0 };
   for( auto& temp: HybridMiner::getHashrates() )
@@ -305,55 +386,11 @@ auto MinerState::printStatus() -> void
     hashrate += temp;
   }
 
-  ss_out << getLog();
+  static auto foo = std::bind( ( UseOldUI() ? ::printUiOldWindows : ::printUi ), std::cref( timer ), std::cref( hashrate )  );
 
-  if( m_old_ui )
-  {
-    // print every every 5 seconds . . . more or less
-    static auto time_counter{ steady_clock::now() + 5s };
-    if( time_counter > steady_clock::now() ) return;
-    time_counter = steady_clock::now() + 5s;
+  std::stringstream ss_out;
 
-    ss_out << getPrintableTimeStamp()
-           << std::setw( 10 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
-           << hashrate
-           << " MH/s  Sols:"
-           << std::setw( 6 ) << std::setfill( ' ' ) << m_sol_count
-           << (m_new_solution ? '^' : ' ')
-           << " Search time: "
-           << std::fixed << std::setprecision( 0 ) << std::setfill( '0' )
-           << std::setw( 2 ) << std::floor( timer / 60 ) << ":"
-           << std::setw( 2 ) << std::floor( std::fmod( timer, 60 ) )
-           << '\n';
-
-    m_new_solution = false;
-  }
-  else
-  {
-    // maybe breaking the control codes into macros is a good idea . . .
-    ss_out << "\x1b[s\x1b[?25l\x1b[2;22f\x1b[38;5;221m"
-           << std::setw( 8 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
-           << hashrate
-           << "\x1b[2;75f\x1b[38;5;33m"
-           << std::fixed << std::setprecision( 0 ) << std::setfill( '0' )
-           << std::setw( 2 ) << std::floor( timer / 60 ) << ":"
-           << std::setw( 2 ) << std::floor( std::fmod( timer, 60 ) )
-           << "\x1b[3;14f\x1b[38;5;34m"
-           << m_diff
-           << "\x1b[3;22f\x1b[38;5;221m"
-           << std::setw( 8 ) << std::setfill( ' ' ) << m_sol_count
-           << "\x1b[3;72f\x1b[38;5;33m";
-    {
-      guard lock( m_print_mutex );
-      ss_out << m_address_printable
-             <<"\x1b[2;13f\x1b[38;5;34m"
-             <<  m_challenge_printable;
-    }
-    ss_out.imbue( std::locale( "" ) );
-    ss_out << "\x1b[3;36f\x1b[38;5;208m"
-           << std::setw( 25 ) << m_hash_count_printable;
-    ss_out << "\x1b[0m\x1b[u\x1b[?25h";
-  }
+  ss_out << getLog() << foo();
 
   std::cout << ss_out.str();
 }
@@ -392,10 +429,10 @@ auto MinerState::getPrintableTimeStamp() -> std::string const
   std::time_t tt_ts{ system_clock::to_time_t( now ) };
   std::tm tm_ts{ *std::localtime( &tt_ts ) };
 
-  if( !m_old_ui ) ss_ts << "\x1b[90m";
+  if( !UseOldUI() ) ss_ts << "\x1b[90m";
   ss_ts << std::put_time( &tm_ts, "[%T" ) << '.'
         << std::setw( 3 ) << std::setfill( '0' ) << now_ms.count() << "] ";
-  if( !m_old_ui ) ss_ts << "\x1b[39m";
+  if( !UseOldUI() ) ss_ts << "\x1b[39m";
 
   return ss_ts.str();
 }
@@ -467,30 +504,6 @@ auto MinerState::getSolCount() -> uint64_t const
   return m_sol_count;
 }
 
-auto MinerState::setPrefix( std::string const prefix ) -> void
-{
-  assert( prefix.length() == ( PREFIX_LENGTH * 2 + 2 ) );
-
-  message_t temp;
-  hexToBytes( prefix, temp );
-  std::memcpy( &temp[52], m_solution.data(), 32 );
-
-  if( temp == m_message ) return;
-
-  {
-    guard lock( m_message_mutex );
-    std::memcpy( m_challenge_old.data(), m_message.data(), 32 );
-    std::memcpy( m_message.data(), temp.data(), 52 );
-  }
-
-  {
-    guard lock( m_print_mutex );
-    m_challenge_printable = prefix.substr( 2, 8 );
-  }
-
-  m_message_ready = true;
-}
-
 auto MinerState::getPrefix() -> std::string const
 {
   prefix_t temp;
@@ -518,7 +531,7 @@ auto MinerState::setChallenge( std::string challenge ) -> void
     m_challenge_printable = challenge.substr( 2, 8 );
   }
 
-  m_message_ready = true;
+  m_challenge_ready = true;
 }
 
 auto MinerState::getChallenge() -> std::string const
@@ -555,7 +568,7 @@ auto MinerState::setPoolAddress( std::string address ) -> void
     std::memcpy( &m_message[32], temp.data(), 20 );
   }
 
-  m_message_ready = true;
+  m_pool_address_ready = true;
 }
 
 auto MinerState::getPoolAddress() -> std::string const
@@ -572,9 +585,9 @@ auto MinerState::getPoolAddress() -> std::string const
 
 auto MinerState::setTarget( std::string target ) -> void
 {
-  assert( target.length() <= ( UINT256_LENGTH * 2 + 2 ) );
+  assert( target.length() <= ( UINT256_LENGTH ) );
 
-  BigUnsigned temp{ BigUnsignedInABase( target.substr( 2 ), 16 ) };
+  BigUnsigned temp{ BigUnsignedInABase( target, 16 ) };
 
   if( temp == m_target ) return;
 
@@ -583,11 +596,7 @@ auto MinerState::setTarget( std::string target ) -> void
     m_target = temp;
   }
 
-  std::string const t( static_cast<std::string::size_type>( UINT256_LENGTH * 2 + 2 ) - target.length(), '0' );
-
-  uint64_t temp_num{ std::stoull( (t + target.substr( 2 )).substr( 0, 16 ), nullptr, 16 ) };
-
-  m_target_num = temp_num;
+  m_target_num = temp.getBlock( 3 );
 }
 
 auto MinerState::getTarget() -> BigUnsigned const
@@ -699,7 +708,7 @@ auto MinerState::setDiff( uint64_t const diff ) -> void
   m_diff = diff;
   m_diff_ready = true;
   BigUnsigned temp{ m_maximum_target / diff };
-  setTarget( "0x"s + std::string(BigUnsignedInABase( temp, 16 )) );
+  setTarget( std::string(BigUnsignedInABase( temp, 16 )) );
 }
 
 auto MinerState::getDiff() -> uint64_t const
@@ -711,8 +720,8 @@ auto MinerState::setPoolUrl( std::string const pool ) -> void
 {
   if( pool.find( "mine0xbtc.eu"s ) != std::string::npos )
   {
-    std::cerr << "Selected pool '" << pool << "' is blocked for deceiving the community and apparent scamming.\n"
-              << "Please select a different pool to mine on.\n";
+    std::cerr << "Selected pool '"sv << pool << "' is blocked for deceiving the community and apparent scamming.\n"sv
+              << "Please select a different pool to mine on.\n"sv;
     std::exit( EXIT_FAILURE );
   }
   {
@@ -727,9 +736,14 @@ auto MinerState::getPoolUrl() -> std::string const
   return m_pool_url;
 }
 
-auto MinerState::getCudaDevices() -> std::vector<std::pair<int32_t, double>> const
+auto MinerState::getCudaDevices() -> device_list_t const
 {
   return m_cuda_devices;
+}
+
+auto MinerState::getClDevices() -> device_map_t const
+{
+  return m_opencl_devices;
 }
 
 auto MinerState::getCpuThreads() -> uint32_t const
@@ -772,7 +786,12 @@ auto MinerState::getSubmitStale() -> bool const
 
 auto MinerState::isReady() -> bool const
 {
-  return m_diff_ready && m_message_ready;
+  return m_diff_ready && m_challenge_ready && m_pool_address_ready;
+}
+
+auto MinerState::isDebug() -> bool const
+{
+  return m_debug;
 }
 
 auto MinerState::keccak256( std::string const message ) -> std::string const

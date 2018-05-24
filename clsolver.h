@@ -26,13 +26,15 @@ class CLSolver : public ISolver
 {
 public:
   CLSolver() = delete;
-  CLSolver( cl::Device const device, double const intensity ) noexcept;
+  CLSolver( cl::Device const &device, double const intensity ) noexcept;
   ~CLSolver();
 
   auto findSolution() -> void final;
   auto stopFinding() -> void final;
 
   auto getHashrate() const -> double const final;
+  auto getTemperature() const -> uint32_t const final;
+  auto getDeviceState() const -> device_info_t const final;
 
   auto updateTarget() -> void final;
   auto updateMessage() -> void final;

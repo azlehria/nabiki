@@ -4,10 +4,12 @@
 using namespace std::string_literals;
 
 std::string const clKeccakSource = R"(
+#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable 
+
 #define ROTL64(x, y) (((x) << (y)) ^ ((x) >> (64 - (y))))
 #define ROTR64(x, y) (((x) >> (y)) ^ ((x) << (64 - (y))))
 
-__constant const ulong RC[24] = {
+constant const ulong RC[24] = {
   0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
   0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
   0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
@@ -35,7 +37,7 @@ __constant const ulong RC[24] = {
 
 ulong xor5( ulong const a, ulong const b, ulong const c, ulong const d, ulong const e )
 {
-#if CUDA_VERSION
+#if 0//CUDA_VERSION
   ulong output;
   asm( "{"
        "  xor.b64 %0, %1, %2;"
@@ -51,7 +53,7 @@ ulong xor5( ulong const a, ulong const b, ulong const c, ulong const d, ulong co
 
 ulong xor3( ulong const a, ulong const b, ulong const c )
 {
-#if CUDA_VERSION
+#if 0//CUDA_VERSION
   ulong output;
 #if 0//CUDA_VERSION >= 500
   asm( "{"
@@ -96,11 +98,11 @@ void cl_mine( global ulong* d_mid,
               global ulong* d_target,
               local ulong* solution,
               local volatile uint* cnt,
-              ulong threads )
+              local ulong* threads )
 {
-  ulong nounce = threads + get_global_id(0);
+  ulong nounce = *threads + get_global_id(0);
 
-  printf( "%llu\n%llu\n%llu\n", d_target, solution, threads );
+  printf( "%lu\n%lu\n%lu\n", d_target, solution, threads );
 
   ulong state[25], C[5], D[5];
   ulong n[11] = { ROTL64(nounce,  7) };
@@ -171,7 +173,6 @@ void cl_mine( global ulong* d_mid,
   state[24] = chi( C[4], C[0], C[1] );
 
 #if CUDA_VERSION >= 350
-#  pragma unroll
 #endif
   for( uchar i = 1; i < 23; ++i )
   {
@@ -262,7 +263,7 @@ void cl_mine( global ulong* d_mid,
 
   state[ 0] = chi( state[ 0], state[ 6], state[12] ) ^ RC[23];
 
-  if( as_ulong(as_uchar8(state[0]).s7s6s5s4s3s2s1s0) <= *d_target )
+  if( as_ulong( as_uchar8( state[0] ).s76543210 ) <= *d_target )
   {
     uint cIdx = atomic_add( cnt, 1 );
     if( cIdx >= 256 ) return;

@@ -1,15 +1,15 @@
 #ifndef _CUDASOLVER_H_
 #define _CUDASOLVER_H_
 
-#include <vector_types.h>
+#include "types.h"
+#include "isolver.h"
+
 #include <thread>
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
 #include <chrono>
 #include <string>
-#include "types.h"
-#include "isolver.h"
+#include <vector_types.h>
+#include <nvml.h>
 
 class CUDASolver : public ISolver
 {
@@ -22,6 +22,8 @@ public:
   auto stopFinding() -> void final;
 
   auto getHashrate() const -> double const final;
+  auto getTemperature() const -> uint32_t const final;
+  auto getDeviceState() const -> device_info_t const final;
 
   auto updateTarget() -> void final;
   auto updateMessage() -> void final;
@@ -49,6 +51,10 @@ private:
   std::chrono::steady_clock::time_point m_start;
 
   std::thread m_run_thread;
+
+  nvmlDevice_t m_nvml_handle;
+
+  std::string m_name;
 
   std::atomic<bool> m_stop;
   std::atomic<bool> m_stopped;
