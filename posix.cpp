@@ -37,7 +37,7 @@ auto UseOldUI() -> bool
 
 auto SignalHandler( int signal ) -> void
 {
-  m_stop = true;
+  HybridMiner::stop();
   tcsetattr( 0, TCSANOW, &term_original );
   return;
 }
