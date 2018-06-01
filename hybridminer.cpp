@@ -6,6 +6,7 @@
 #include "cpusolver.h"
 #include "cudasolver.h"
 #include "clsolver.h"
+#include "telemetry.h"
 
 #include <cstdlib>
 #include <sstream>
@@ -14,6 +15,7 @@
 #include <thread>
 #include <string>
 #include <string_view>
+#include <nvml.h>
 
 using namespace std::literals::string_literals;
 using namespace std::literals::string_view_literals;
@@ -27,7 +29,6 @@ namespace
   static uint_fast16_t m_solvers_cpu{ 0u };
   static uint_fast16_t m_solvers_cl{ 0u };
   static std::atomic<bool> m_stop{ false };
-  static std::atomic<bool> m_stopped{ false };
 
   static auto printUiBase() -> void
   {
@@ -50,11 +51,11 @@ namespace
                 << "\x1b[s\x1b[3;29f\x1b[38;5;221m0\x1b[0m\x1b[u"sv
                 << "\x1b[1;64f"sv << MINER_VERSION.substr( 7 )
                 << "\x1b]2;"sv << MINER_VERSION << "\x07"sv
-                << "\x1b[" << logTop << "r\x1b[" << logTop << ";1f\x1b[?25h"sv;
+                << "\x1b[" << logTop << "r\x1b[" << logTop << ";1f"sv;
     }
 
     std::stringstream ss_out;
-    ss_out << "Mining on "sv;
+    ss_out << MinerState::getPrintableTimeStamp() << "Mining on "sv;
     if( m_solvers_cuda > 0u )
     {
       ss_out << m_solvers_cuda
@@ -78,9 +79,9 @@ namespace
       ss_out << m_solvers_cpu << " CPU core"sv << (m_solvers_cpu > 1 ? "s"sv : ""sv);
     }
 
-    ss_out << ( UseOldUI() ? ".\n"sv : ".\r"sv);
+    ss_out << ".\n"sv;
 
-    MinerState::pushLog( ss_out.str() );
+    std::cout << ss_out.str();
   }
 
   static auto startMining() -> void
@@ -92,6 +93,7 @@ namespace
 
     for( auto& device : MinerState::getCudaDevices() )
     {
+      nvmlInit();
       m_solvers.push_back( std::make_unique<CUDASolver>( device.first,
                                                          device.second ) );
       ++m_solvers_cuda;
@@ -115,97 +117,109 @@ namespace
   }
 }
 
-auto HybridMiner::updateTarget() -> void
+namespace HybridMiner
 {
-  for( auto&& solver : m_solvers )
+  auto updateTarget() -> void
   {
-    solver->updateTarget();
-  }
-}
-
-auto HybridMiner::updateMessage() -> void
-{
-  for( auto&& solver : m_solvers )
-  {
-    solver->updateMessage();
-  }
-}
-
-// This is the "main" thread of execution
-auto HybridMiner::run() -> void
-{
-  SetBasicState();
-
-  MinerState::initState();
-
-  Commo::Init();
-
-  startMining();
-
-  printUiBase();
-
-  std::thread printer{ [] {
-  do
-  {
-    auto timerNext = steady_clock::now() + 100ms;
-
-    MinerState::printStatus();
-
-    std::this_thread::sleep_until( timerNext );
-  } while( !m_stop ); } };
-
-  printer.join();
-
-  std::cerr << MinerState::getPrintableTimeStamp() << "Process exiting... stopping miner\n"sv;
-
-  m_solvers.clear();
-
-  m_solvers_cuda = m_solvers_cpu = 0u;
-
-  if( !UseOldUI() )
-  {
-    std::cerr << "\x1b[s\x1b[?25h\x1b[r\x1b[u"sv;
-  }
-
-  Commo::Cleanup();
-  m_stopped = true;
-}
-
-auto HybridMiner::stop() -> void
-{
-  m_stop = true;
-}
-
-auto HybridMiner::getHashrates() -> std::vector<double> const
-{
-  std::vector<double> temp;
-  for( auto&& solver : m_solvers )
-  {
-    temp.emplace_back( solver->getHashrate() );
-  }
-  return temp;
-}
-
-auto HybridMiner::getTemperatures() -> std::vector<uint32_t> const
-{
-  std::vector<uint32_t> temp;
-  for( auto&& solver : m_solvers )
-  {
-    temp.emplace_back( solver->getTemperature() );
-  }
-  return temp;
-}
-
-auto HybridMiner::getDeviceStates() -> std::vector<device_info_t> const
-{
-  std::vector<device_info_t> ret;
-  for( auto&& solver : m_solvers )
-  {
-    device_info_t temp{ solver->getDeviceState() };
-    if( !temp.name.empty() )
+    for( auto&& solver : m_solvers )
     {
-      ret.emplace_back( temp );
+      solver->updateTarget();
     }
   }
-  return ret;
+
+  auto updateMessage() -> void
+  {
+    for( auto&& solver : m_solvers )
+    {
+      solver->updateMessage();
+    }
+  }
+
+  // This is the "main" thread of execution
+  auto run() -> void
+  {
+    SetBasicState();
+
+    MinerState::initState();
+
+    Commo::Init();
+
+    startMining();
+
+    printUiBase();
+
+    Telemetry::init();
+
+    std::thread printer{ [] {
+    do
+    {
+      auto timerNext = steady_clock::now() + 100ms;
+
+      MinerState::printStatus();
+
+      std::this_thread::sleep_until( timerNext );
+    } while( !m_stop ); } };
+
+    printer.join();
+
+    std::cerr << MinerState::getPrintableTimeStamp() << "Process exiting... stopping miner\n"sv;
+
+    if( !UseOldUI() )
+    {
+      std::cerr << "\x1b[s\x1b[?25h\x1b[r\x1b[u"sv;
+    }
+
+    for( auto& solver : m_solvers )
+    {
+      solver->stopFinding();
+    }
+
+    if( m_solvers_cuda )
+      nvmlShutdown();
+
+    m_solvers_cuda = m_solvers_cpu = 0u;
+
+    Telemetry::cleanup();
+
+    Commo::Cleanup();
+  }
+
+  auto stop() -> void
+  {
+    m_stop = true;
+  }
+
+  auto getHashrates() -> std::vector<double> const
+  {
+    std::vector<double> temp;
+    for( auto&& solver : m_solvers )
+    {
+      temp.emplace_back( solver->getHashrate() );
+    }
+    return temp;
+  }
+
+  auto getTemperatures() -> std::vector<uint32_t> const
+  {
+    std::vector<uint32_t> temp;
+    for( auto&& solver : m_solvers )
+    {
+      temp.emplace_back( solver->getTemperature() );
+    }
+    return temp;
+  }
+
+  auto getDeviceStates() -> std::vector<device_info_t> const
+  {
+    std::vector<device_info_t> ret;
+    for( auto&& solver : m_solvers )
+    {
+      device_info_t temp{ solver->getDeviceState() };
+      if( !temp.name.empty() )
+      {
+        ret.emplace_back( temp );
+      }
+    }
+    return ret;
+  }
 }

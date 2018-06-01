@@ -22,25 +22,27 @@ based off of https://github.com/Dunhili/SHA3-gpu-brute-force-cracker/blob/master
 #  include <cuda.h>
 #endif //__INTELLISENSE__
 
-#define cudaSafeCall(err) __cudaSafeCall(err, __FILE__, __LINE__, m_device)
+#define cudaSafeCall(err) __cudaSafeCall((err), __FILE__, __LINE__, m_device)
 
 __host__ inline
-auto __cudaSafeCall( cudaError_t err, char const* file, int32_t const line, int32_t device_id ) -> void
+auto __cudaSafeCall( cudaError_t const& err, char const* file, int32_t const& line, int32_t const& device_id ) -> void
 {
 #ifndef CUDA_NDEBUG
-  if (cudaSuccess != err) {
-    std::cerr << "CUDA device " << device_id
-              << " encountered an asynchronous error in file '" << file
-              << "' in line " << line
-              << " : " << cudaGetErrorString( err ) << ".\n";
-    cudaError_t syncErr = cudaGetLastError();
-    if( syncErr )
-    {
-      std::cerr << "Synchronous error " << syncErr << ":"
-                << cudaGetErrorString( syncErr ) << " was also encountered.\n";
+  if( !err )
+  {
+    return;
+  }
+  std::cerr << "CUDA device " << device_id
+            << " encountered error #" << err << "in file '" << file
+            << "' in line " << line
+            << " : " << cudaGetErrorString( err ) << ".\n";
+  cudaError_t syncErr = cudaDeviceSynchronize();
+  if( syncErr )
+  {
+    std::cerr << "Synchronous error " << syncErr << ":"
+              << cudaGetErrorString( syncErr ) << " was also encountered.\n";
     }
     exit( EXIT_FAILURE );
-  }
 #endif
 }
 
@@ -55,30 +57,27 @@ __device__ __constant__ const uint64_t RC[24] = {
   0x800000008000000a, 0x8000000080008081, 0x8000000000008080,
   0x0000000080000001
 };
-#endif
+#endif // __CUDA_ARCH__ < 350
+
 __constant__ uint64_t d_mid[25];
-__constant__ uint64_t d_target;
+__constant__ uint32_t d_target;
 
 __device__ __forceinline__
-auto ROTL64( uint64_t& output, uint64_t const x, uint32_t const y ) -> void
+auto ROTL64( uint64_t& output, uint64_t const& x, uint32_t const& y ) -> void
 {
   output = (x << y) ^ (x >> (64 - y));
 }
 
 __device__ __forceinline__
-auto bswap_64( uint64_t const input ) -> uint64_t const
+auto bswap_32( uint32_t const& input ) -> uint32_t const
 {
-  uint64_t output;
-  asm( "{"
-       "  prmt.b32 %0, %3, 0, 0x0123;"
-       "  prmt.b32 %1, %2, 0, 0x0123;"
-       "}" : "=r"(reinterpret_cast<uint2&>(output).x), "=r"(reinterpret_cast<uint2&>(output).y)
-           : "r"(reinterpret_cast<uint2 const&>(input).x), "r"(reinterpret_cast<uint2 const&>(input).y) );
+  uint32_t output;
+  asm( "prmt.b32 %0, %1, 0, 0x0123;" : "=r"( output ) : "r"( input ) );
   return output;
 }
 
 __device__ __forceinline__
-auto xor5( uint64_t& output, uint64_t const* const s ) -> void
+auto xor5( uint64_t& output, uint64_t const* const __restrict__ s ) -> void
 {
   asm( "{"
        "  xor.b64 %0, %1, %2;"
@@ -89,7 +88,7 @@ auto xor5( uint64_t& output, uint64_t const* const s ) -> void
 }
 
 __device__ __forceinline__
-auto xor3( uint64_t& a, uint64_t const b, uint64_t const c ) -> void
+auto xor3( uint64_t& a, uint64_t const& b, uint64_t const& c ) -> void
 {
 #if __CUDA_ARCH__ >= 500
   asm( "{"
@@ -117,7 +116,7 @@ auto theta_parity( uint64_t* __restrict__ t, uint64_t const* const __restrict__ 
 }
 
 __device__ __forceinline__
-auto theta_xor( uint64_t* __restrict__ s, uint64_t const t, uint64_t& u, uint64_t const v ) -> void
+auto theta_xor( uint64_t* __restrict__ s, uint64_t const& t, uint64_t& u, uint64_t const& v ) -> void
 {
   ROTL64( u, v, 1 );
   xor3( s[ 0], u, t );
@@ -140,7 +139,7 @@ auto theta( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t* __rest
 }
 
 __device__ __forceinline__
-auto chi_single( uint64_t& output, uint64_t const a, uint64_t const b, uint64_t const c ) -> void
+auto chi_single( uint64_t& output, uint64_t const& a, uint64_t const& b, uint64_t const& c ) -> void
 {
 #if __CUDA_ARCH__ >= 500
   asm( "{"
@@ -177,7 +176,7 @@ auto chi( uint64_t* __restrict__ s, uint64_t* __restrict__ t ) -> void
 }
 
 __device__ __forceinline__
-auto keccak_round( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t* __restrict__ u, uint64_t const rc ) -> void
+auto keccak_round( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t* __restrict__ u, uint64_t const& rc ) -> void
 {
   theta( s, t, u );
   
@@ -217,7 +216,7 @@ auto keccak_round( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t*
 }
 
 __device__ __forceinline__
-auto keccak_first( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t const nounce ) -> void
+auto keccak_first( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t const& nounce ) -> void
 {
   uint64_t n[11]{ 0 };
   ROTL64( n[ 0], nounce, 7 );
@@ -268,6 +267,7 @@ auto keccak_first( uint64_t* __restrict__ s, uint64_t* __restrict__ t, uint64_t 
   t[4] = d_mid[24];
   chi_group( &s[20], t );
 }
+
 __global__
 void cuda_mine( uint64_t* __restrict__ solution, uint32_t* __restrict__ solution_count, uint64_t const threads )
 {
@@ -322,9 +322,11 @@ void cuda_mine( uint64_t* __restrict__ solution, uint32_t* __restrict__ solution
   chi_single( state[0], state[0], state[6], state[12] );
   state[0] ^= 0x8000000080008008ull;
 
-  if( bswap_64( state[0] ) <= d_target )
+  if( reinterpret_cast<uint2&>(state[0]).x ) return;
+
+  if( bswap_32( reinterpret_cast<uint2&>(state[0]).y ) <= d_target )
   {
-    uint64_t cIdx{ atomicAdd( solution_count, 1 ) };
+    uint32_t cIdx{ atomicAdd( solution_count, 1 ) };
     if( cIdx >= 256 ) return;
 
     solution[cIdx] = nounce;
@@ -335,10 +337,8 @@ void cuda_mine( uint64_t* __restrict__ solution, uint32_t* __restrict__ solution
 
 auto CUDASolver::cudaInit() -> void
 {
-  cudaSetDevice( m_device );
-
   cudaDeviceProp device_prop;
-  cudaSafeCall( cudaGetDeviceProperties( &device_prop, m_device ) );
+  cudaGetDeviceProperties( &device_prop, m_device );
 
   int32_t compute_version{ device_prop.major * 100 + device_prop.minor * 10 };
 
@@ -349,7 +349,7 @@ auto CUDASolver::cudaInit() -> void
   }
 
   m_block.x = compute_version > 500 ? TPB50 : TPB35;
-  m_grid.x = uint32_t((m_threads + m_block.x - 1) / m_block.x);
+  m_grid.x = uint32_t( ( m_threads + m_block.x - 1 ) / m_block.x );
 
   if( !m_gpu_initialized )
   {
@@ -371,8 +371,6 @@ auto CUDASolver::cudaInit() -> void
 
 auto CUDASolver::cudaCleanup() -> void
 {
-  cudaSafeCall( cudaSetDevice( m_device ) );
-
   cudaSafeCall( cudaThreadSynchronize() );
 
   cudaSafeCall( cudaFree( d_solution_count ) );
@@ -387,26 +385,21 @@ auto CUDASolver::cudaCleanup() -> void
 
 auto CUDASolver::cudaResetSolution() -> void
 {
-  cudaSetDevice( m_device );
-
   std::memset( h_solution_count, 0u, 4 );
   cudaSafeCall( cudaMemset( d_solution_count, 0u, 4 ) );
 }
 
 auto CUDASolver::pushTarget() -> void
 {
-  cudaSetDevice( m_device );
-
-  uint64_t target{ getTarget() };
-  cudaSafeCall( cudaMemcpyToSymbol( d_target, &target, 8, 0, cudaMemcpyHostToDevice) );
+  uint64_t t_target{ getTarget() };
+  uint32_t target{ reinterpret_cast<uint2&>(t_target).x };
+  cudaSafeCall( cudaMemcpyToSymbol( d_target, &target, 4, 0, cudaMemcpyHostToDevice) );
 
   m_new_target = false;
 }
 
 auto CUDASolver::pushMessage() -> void
 {
-  cudaSetDevice( m_device );
-
   cudaSafeCall( cudaMemcpyToSymbol( d_mid, getMidstate().data(), 200, 0, cudaMemcpyHostToDevice) );
 
   m_new_message = false;
@@ -414,14 +407,27 @@ auto CUDASolver::pushMessage() -> void
 
 auto CUDASolver::findSolution() -> void
 {
+  cudaSafeCall( cudaSetDevice( m_device ) );
+
   cudaInit();
 
-  cudaSetDevice( m_device );
+  //void* func = &cuda_mine;
+  //uint64_t search_space[1];
+  //std::vector<void*> args{ &d_solutions, &d_solution_count, &search_space };
 
-  do
+  //void* t_mid;
+  //void* t_target;
+  //cudaSafeCall( cudaGetSymbolAddress( &t_target, d_target ) );
+  //cudaSafeCall( cudaGetSymbolAddress( &t_mid, d_mid ) );
+
+  while( !m_stop )
   {
     if( m_new_target ) { pushTarget(); }
     if( m_new_message ) { pushMessage(); }
+
+    //search_space[0] = getNextSearchSpace();
+
+    //cudaError_t syncErr = cudaLaunchKernel( func, m_grid, m_block, args.data() );
 
     cuda_mine <<< m_grid, m_block >>> ( d_solutions, d_solution_count, getNextSearchSpace() );
     cudaError_t syncErr = cudaGetLastError();
@@ -457,7 +463,13 @@ auto CUDASolver::findSolution() -> void
       pushSolutions();
       cudaResetSolution();
     }
-  } while( !m_stop );
+  }
 
-  m_stopped = true;
+  //for( auto& arg : args )
+  //{
+  //  free( arg );
+  //}
+  //free( func );
+
+  cudaCleanup();
 }

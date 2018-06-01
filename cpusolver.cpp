@@ -32,7 +32,6 @@ m_hash_count( 0u ),
 m_hash_count_samples( 0u ),
 m_hash_average( 0 ),
 m_stop( false ),
-m_stopped( false ),
 m_start( steady_clock::now() )
 {
   sph_keccak256_init( &m_ctx );
@@ -41,11 +40,6 @@ m_start( steady_clock::now() )
 
 CPUSolver::~CPUSolver()
 {
-  stopFinding();
-  while( !m_stopped || !m_run_thread.joinable() )
-  {
-    std::this_thread::sleep_for( 1ms );
-  }
   m_run_thread.join();
 }
 
@@ -60,7 +54,7 @@ auto CPUSolver::findSolution() -> void
   message_t in_buffer;
   hash_t out_buffer;
 
-  do
+  while( !m_stop )
   {
     if( m_new_target )
     {
@@ -84,9 +78,7 @@ auto CPUSolver::findSolution() -> void
     {
       MinerState::pushSolution( solution );
     }
-  } while( !m_stop );
-
-  m_stopped = true;
+  }
 }
 
 auto CPUSolver::getHashrate() const -> double const

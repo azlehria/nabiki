@@ -16,7 +16,6 @@ using namespace nlohmann;
 namespace
 {
   static std::atomic<bool> m_stop{ false };
-  static std::atomic<bool> m_stopped{ false };
 
   static std::thread m_thread;
 
@@ -173,7 +172,7 @@ namespace
     updateState( true );
 
     auto check_time{ steady_clock::now() + 4s };
-    do
+    while( !m_stop )
     {
       if( steady_clock::now() >= check_time )
       {
@@ -183,31 +182,28 @@ namespace
 
       submitSolutions();
 
-      std::this_thread::sleep_for( 20ms );
-    } while( !m_stop );
-
-    m_stopped = true;
+      std::this_thread::sleep_for( 1ms );
+    }
   }
-};
-
-auto Commo::Init() -> void
-{
-  curl_global_init( CURL_GLOBAL_ALL );
-
-  m_get_diff["params"][0] = MinerState::getAddress();
-  m_get_target["params"][0] = MinerState::getAddress();
-
-  m_thread = std::thread( &netWorker );
 }
 
-auto Commo::Cleanup() -> void
+namespace Commo
 {
-  m_stop = true;
-  while( !m_stopped )
+  auto Init() -> void
   {
-    std::this_thread::sleep_for( 1ms );
-  }
-  m_thread.join();
+    curl_global_init( CURL_GLOBAL_ALL );
 
-  curl_global_cleanup();
+    m_get_diff["params"][0] = MinerState::getAddress();
+    m_get_target["params"][0] = MinerState::getAddress();
+
+    m_thread = std::thread( &netWorker );
+  }
+
+  auto Cleanup() -> void
+  {
+    m_stop = true;
+    m_thread.join();
+
+    curl_global_cleanup();
+  }
 }

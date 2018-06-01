@@ -10,7 +10,6 @@ using namespace std::chrono;
 
 CLSolver::CLSolver( cl::Device const &device, double const intensity ) noexcept :
 m_stop( false ),
-m_stopped( false ),
 m_new_target( true ),
 m_new_message( true ),
 m_hash_count( 0u ),
@@ -32,7 +31,7 @@ m_start( steady_clock::now() )
 
 CLSolver::~CLSolver()
 {
-  clCleanup();
+  m_run_thread.join();
 }
 
 auto CLSolver::getHashrate() const -> double const
@@ -158,7 +157,7 @@ auto CLSolver::findSolution() -> void
 {
   clInit();
 
-  do
+  while( !m_stop )
   {
     if( m_new_target ) { pushTarget(); }
     if( m_new_message ) { pushMessage(); }
@@ -209,7 +208,9 @@ auto CLSolver::findSolution() -> void
       pushSolution();
       clResetSolution();
     }
-  } while( !m_stop );
+  }
+
+  clCleanup();
 }
 
 auto CLSolver::updateTarget() -> void

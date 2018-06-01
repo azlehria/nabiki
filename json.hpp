@@ -1677,7 +1677,7 @@ class input_stream_adapter : public input_adapter_protocol
     // std::istream/std::streambuf use std::char_traits<char>::to_int_type, to
     // ensure that std::char_traits<char>::eof() and the character 0xFF do not
     // end up as the same value, eg. 0xFFFFFFFF.
-    std::char_traits<char>::int_type get_character() override
+    std::char_traits<char>::int_type get_character()
     {
         return sb.sbumpc();
     }
@@ -1711,7 +1711,7 @@ class input_buffer_adapter : public input_adapter_protocol
     input_buffer_adapter(const input_buffer_adapter&) = delete;
     input_buffer_adapter& operator=(input_buffer_adapter&) = delete;
 
-    std::char_traits<char>::int_type get_character() noexcept override
+    std::char_traits<char>::int_type get_character() noexcept
     {
         if (JSON_LIKELY(cursor < limit))
         {
@@ -9955,6 +9955,20 @@ class basic_json
 
 
     /*!
+    @brief exchanges the values of two JSON objects
+
+    @since version 1.0.0
+    */
+    template<class T>
+    inline void swap( T& j1, T& j2 ) noexcept(
+                          is_nothrow_move_constructible<T>::value and
+                          is_nothrow_move_assignable<T>::value
+                          )
+    {
+        j1.swap( j2 );
+    }
+
+    /*!
     @brief returns the allocator associated with the container
     */
     static allocator_type get_allocator()
@@ -17257,21 +17271,6 @@ class basic_json
 // specialization of std::swap, and std::hash
 namespace std
 {
-/*!
-@brief exchanges the values of two JSON objects
-
-@since version 1.0.0
-*/
-template<>
-inline void swap(nlohmann::json& j1,
-                 nlohmann::json& j2) noexcept(
-                     is_nothrow_move_constructible<nlohmann::json>::value and
-                     is_nothrow_move_assignable<nlohmann::json>::value
-                 )
-{
-    j1.swap(j2);
-}
-
 /// hash value for JSON objects
 template<>
 struct hash<nlohmann::json>

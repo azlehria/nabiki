@@ -29,6 +29,12 @@
       <Filter>Libs\BigInt</Filter>
     </ClCompile>
     <ClCompile Include="win32.cpp" />
+    <ClCompile Include="telemetry.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="CivetWeb\civetweb.c">
+      <Filter>Libs\CivetWeb</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hybridminer.h">
@@ -82,6 +88,12 @@
     <ClInclude Include="platforms.h">
       <Filter>Headers</Filter>
     </ClInclude>
+    <ClInclude Include="telemetry.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="CivetWeb\civetweb.h">
+      <Filter>Libs\CivetWeb</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Libs">
@@ -105,6 +117,9 @@
     <Filter Include="Headers">
       <UniqueIdentifier>{529add3a-eade-460c-8c62-0a9e372e90d4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Libs\CivetWeb">
+      <UniqueIdentifier>{20be8fe6-c5e8-4acf-b37b-f43c396078d6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="version.manifest" />
@@ -117,6 +132,15 @@
   <ItemGroup>
     <None Include="clsolver.cl">
       <Filter>OpenCL</Filter>
+    </None>
+    <None Include="CivetWeb\handle_form.inl">
+      <Filter>Libs\CivetWeb</Filter>
+    </None>
+    <None Include="CivetWeb\md5.inl">
+      <Filter>Libs\CivetWeb</Filter>
+    </None>
+    <None Include="CivetWeb\sha1.inl">
+      <Filter>Libs\CivetWeb</Filter>
     </None>
   </ItemGroup>
 </Project>

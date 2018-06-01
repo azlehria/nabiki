@@ -2,6 +2,7 @@
   // "customdiff" completely overrides server diff - it will not even query
   // the server for diff or target. This can easily result in no submissions
   // _ever_ being valid!
+  // -------
   // "customdiff" : 16384,
 
   // "token" is a string indicating the ERC20 to mine for; this changes
@@ -9,28 +10,48 @@
   // and accepts both ticker symbols ("0xBTC") and names ("0xBitcoin").
   // Currently valid tokens are 0xBitcoin and 0xCatether.
   // Default token, used when an invalid token is entered, is 0xBitcoin.
-  "token": "0xBTC",
-
-  // "debug" is currently unused - the purpose should be fairly obvious.
-  // "debug" : true,
-
-  // "submitstale" will cause stale solutions to be submitted anyway.
-  // Currently this is useless, as all existing pools treat them as invalid.
-  // "submitstale" : true,
+  // -------
+  "token" : "0xBTC",
 
   // "address" is your Ethereum (wallet) address.
-  "address": "0x525F94485486B506FE2dB50e815d4eb95FB54Cef",
+  // -------
+  "address" : "0x525F94485486B506FE2dB50e815d4eb95FB54Cef",
 
   // "pool" is the URL and port of the mining pool that you wish to use.
   // Currently only HTTP is supported on either end, no other protocol
   // including HTTPS. The most common, and default, server port is 8586.
-  "pool": "http://0xminingpool.com:8586",
+  // -------
+  "pool" : "http://0xminingpool.com:8586",
+
+  // "debug" is currently unused - the purpose should be fairly obvious.
+  // -------
+  // "debug" : true,
+
+  // "telemetry" provides a _partial_ XMRig API at http://<address>:<port>/
+  // it can be alternatively either:
+  //   an object with members
+  //   where "acl" and "port" can be comma-separated lists
+  // -------
+  "telemetry" : {
+    // enables/disables remote API
+    "enabled" : false,
+    // access control not implemented yet
+    "acl" : "+127.0.0.1",
+    // network port to bind for API
+    "port" : 4863
+  },
+
+  // "submitstale" will cause stale solutions to be submitted anyway.
+  // Currently this is useless, as all existing pools treat them as invalid.
+  // -------
+  // "submitstale" : true,
 
   // "threads" is the number of CPU threads to use for _CPU mining_.
   // Take care, as there is no throttling, CPU/core affinity, or priority
   // setting at the moment - setting this to the number of cores will
   // _significantly_ impact both usability and GPU mining!
-  "threads": 0,
+  // -------
+  "threads" : 0,
 
   // "cuda" is an array of JSON objects configuring individual Nvidia GPUs
   // in the following format:
@@ -44,14 +65,15 @@
   //               the CUDA device; maximum value 41.99. This is not a direct
   //               thread count, of course - you can't run a partial thread.
   // }
-  "cuda": [
+  // -------
+  "cuda" : [
     // intensity 29 is common for a GTX 1080 or 1080 Ti
     {
       "device": 0,
       "enabled": true,
       "intensity": 29
     },
-    // intensity 23 is a safe, if slow, for almost any GPU
+    // intensity 23 is a safe, if slow, setting for almost any GPU
     {
       "device": 1,
       "enabled": true,

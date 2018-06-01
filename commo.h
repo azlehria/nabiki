@@ -5,6 +5,6 @@ namespace Commo
 {
   auto Init() -> void;
   auto Cleanup() -> void;
-};
+}
 
 #endif // !_COMMO_H_

@@ -34,9 +34,7 @@ auto UseOldUI() -> bool
     GetVersionEx( &winVer );
 #pragma warning( pop )
 
-    if( ( winVer.dwMajorVersion < 10 ) ||
-      ( winVer.dwMajorVersion >= 10 &&
-        winVer.dwBuildNumber < 14392 ) )
+    if( winVer.dwMajorVersion < 10 || winVer.dwBuildNumber < 14392 )
     {
       return true;
     }

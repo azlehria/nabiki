@@ -1,4 +1,5 @@
 #include <cmath>
+#include <nvml.h>
 #include <cuda_runtime_api.h>
 #include "cudasolver.h"
 
@@ -10,7 +11,6 @@ using namespace std::chrono;
 CUDASolver::CUDASolver( int32_t const device, double const intensity ) noexcept :
 m_start( steady_clock::now() ),
 m_stop( false ),
-m_stopped( false ),
 m_new_target( true ),
 m_new_message( true ),
 m_hash_count( 0u ),
@@ -23,7 +23,6 @@ m_device( device ),
 m_grid( 1u ),
 m_block( 1u )
 {
-  nvmlInit();
   char busId[13];
   cudaDeviceGetPCIBusId( busId, 13, device );
   nvmlDeviceGetHandleByPciBusId( busId, &m_nvml_handle );
@@ -37,19 +36,12 @@ m_block( 1u )
 
 CUDASolver::~CUDASolver()
 {
-  stopFinding();
-  while( !m_stopped || !m_run_thread.joinable() )
-  {
-    std::this_thread::sleep_for( 1ms );
-  }
-  cudaCleanup();
-  nvmlShutdown();
   m_run_thread.join();
 }
 
 auto CUDASolver::getHashrate() const -> double const
 {
-  return m_hash_average / 1000;
+  return m_hash_average;
 }
 
 auto CUDASolver::getTemperature() const -> uint32_t const
@@ -101,7 +93,7 @@ auto CUDASolver::getNextSearchSpace() -> uint64_t const
   }
 
   double temp_average{ m_hash_average };
-  temp_average += ((m_hash_count / t) / 1000 - temp_average) / m_hash_count_samples;
+  temp_average += ((m_hash_count / t) - temp_average) / m_hash_count_samples;
   if( std::isnan( temp_average ) || std::isinf( temp_average ) )
   {
     temp_average = m_hash_average;

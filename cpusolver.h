@@ -43,7 +43,6 @@ private:
   std::atomic<double> m_hash_average;
 
   std::atomic<bool> m_stop;
-  std::atomic<bool> m_stopped;
 
   std::chrono::steady_clock::time_point m_start;
 };

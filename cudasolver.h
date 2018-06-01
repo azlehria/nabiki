@@ -57,7 +57,6 @@ private:
   std::string m_name;
 
   std::atomic<bool> m_stop;
-  std::atomic<bool> m_stopped;
   std::atomic<bool> m_new_target;
   std::atomic<bool> m_new_message;
 

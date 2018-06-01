@@ -8,6 +8,8 @@
 
 using namespace std::literals::string_literals;
 
+// to hell with standards that take a useful, _common_ convention and
+// reserve it for their own use (I'm looking at you, POSIX)
 typedef std::array<uint8_t,  52u> prefix_t;
 typedef std::array<uint8_t,  32u> hash_t;
 typedef std::array<uint8_t,  84u> message_t;
