@@ -14,7 +14,9 @@ auto UseOldUI() -> bool const;
 auto WINAPI SignalHandler( DWORD dwSig ) -> BOOL;
 
 #else // _MSC_VER
-#include "x86intrin.h"
+#  include "x86intrin.h"
+
+#  define rotl64 __rolq
 
 auto SignalHandler( int signal ) -> void;
 
