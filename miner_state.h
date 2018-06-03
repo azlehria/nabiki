@@ -8,8 +8,6 @@
 #include <vector>
 #include <utility>
 
-#define ROTL64(x, y) (((x) << (y)) ^ ((x) >> (64 - (y))))
-
 // this really needs to be broken down
 namespace MinerState
 {
@@ -22,7 +20,7 @@ namespace MinerState
 
   auto getIncSearchSpace( uint64_t const& threads ) -> uint64_t const;
   auto resetCounter() -> void;
-  auto getPrintableHashCount() -> uint64_t;
+  auto getPrintableHashCount() -> uint64_t const&;
   auto printStatus() -> void;
   auto getPrintableTimeStamp() -> std::string const;
 
@@ -32,7 +30,7 @@ namespace MinerState
   auto pushSolution( uint64_t const& sol ) -> void;
   auto getSolution() -> std::string const;
   auto incSolCount( uint64_t const& count = 1 ) -> void;
-  auto getSolCount() -> uint64_t const;
+  auto getSolCount() -> uint64_t const&;
 
   auto setTarget( std::string const& target ) -> void;
   auto getTarget() -> BigUnsigned const;
@@ -46,36 +44,35 @@ namespace MinerState
   auto setPoolAddress( std::string const& address ) -> void;
   auto getPoolAddress() -> std::string const;
   auto getMessage() -> message_t const;
+  auto setMidstate() -> void;
   auto getMidstate() -> state_t const;
 
   auto setAddress( std::string const& address ) -> void;
   auto getAddress() -> std::string const;
 
   auto setCustomDiff( uint64_t const& diff ) -> void;
-  auto getCustomDiff() -> bool const;
+  auto getCustomDiff() -> bool const&;
   auto setDiff( uint64_t const& diff ) -> void;
   auto getDiff() -> uint64_t const;
 
   auto setPoolUrl( std::string const& pool ) -> void;
   auto getPoolUrl() -> std::string const;
 
-  auto getCudaDevices() ->device_list_t const;
-  auto getClDevices() -> device_map_t const;
-  auto getCpuThreads() -> uint32_t const;
+  auto getCudaDevices() ->device_list_t const&;
+  auto getClDevices() -> device_map_t const&;
+  auto getCpuThreads() -> uint32_t const&;
 
   auto setTokenName( std::string const& token ) -> void;
-  auto getTokenName() -> std::string const;
+  auto getTokenName() -> std::string const&;
 
   auto setSubmitStale( bool const& submitStale ) -> void;
-  auto getSubmitStale() -> bool const;
+  auto getSubmitStale() -> bool const&;
 
-  auto getTelemetryPorts() -> std::string const;
-  auto getTelemetryAcl() -> std::string const;
+  auto getTelemetryPorts() -> std::string const&;
+  auto getTelemetryAcl() -> std::string const&;
 
   auto isReady() -> bool const;
-  auto isDebug() -> bool const;
-
-  auto keccak256( std::string const& message ) -> std::string const;
+  auto isDebug() -> bool const&;
 }
 
 #endif // !_MINER_STATE_H_

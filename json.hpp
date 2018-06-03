@@ -9961,8 +9961,8 @@ class basic_json
     */
     template<class T>
     inline void swap( T& j1, T& j2 ) noexcept(
-                          is_nothrow_move_constructible<T>::value and
-                          is_nothrow_move_assignable<T>::value
+                          std::is_nothrow_move_constructible<T>::value and
+                          std::is_nothrow_move_assignable<T>::value
                           )
     {
         j1.swap( j2 );

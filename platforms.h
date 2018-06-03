@@ -2,17 +2,20 @@
 #define _PLATFORMS_H_
 
 auto SetBasicState() -> void;
-auto UseOldUI() -> bool;
+auto UseOldUI() -> bool const;
 
 #ifdef _MSC_VER
 #  define WIN32_LEAN_AND_MEAN
 #  include <Windows.h>
+#  include <intrin.h>
+
+#  define rotl64 _rotl64
 
 auto WINAPI SignalHandler( DWORD dwSig ) -> BOOL;
 
 #else // _MSC_VER
 
-void SignalHandler( int signal );
+auto SignalHandler( int signal ) -> void;
 
 #endif // _MSC_VER
 

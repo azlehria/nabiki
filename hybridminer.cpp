@@ -104,16 +104,16 @@ namespace
       m_solvers.push_back( std::make_unique<CPUSolver>() );
     }
 
-    std::vector<cl::Platform> platforms;
-    cl_int error = cl::Platform::get( &platforms );
-    for( auto& cfg_plats : MinerState::getClDevices() )
-    {
-      std::vector<cl::Device> devices;
-      error = platforms[1].getDevices( CL_DEVICE_TYPE_ALL, &devices );
+    //std::vector<cl::Platform> platforms;
+    //cl_int error = cl::Platform::get( &platforms );
+    //for( auto& cfg_plats : MinerState::getClDevices() )
+    //{
+    //  std::vector<cl::Device> devices;
+    //  error = platforms[1].getDevices( CL_DEVICE_TYPE_ALL, &devices );
 
-      m_solvers.push_back( std::make_unique<CLSolver>( devices[0], 17 ) );
-      ++m_solvers_cl;
-    }
+    //  m_solvers.push_back( std::make_unique<CLSolver>( devices[0], 17 ) );
+    //  ++m_solvers_cl;
+    //}
   }
 }
 

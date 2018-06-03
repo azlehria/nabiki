@@ -1,9 +1,11 @@
 #include "commo.h"
 #include "miner_state.h"
 #include "types.h"
+#include "hybridminer.h"
 #include "BigInt/BigIntegerLibrary.hh"
 #include "json.hpp"
-#include "hybridminer.h"
+#include "sph_keccak.h"
+
 #include <thread>
 #include <atomic>
 #include <chrono>
@@ -16,6 +18,7 @@ using namespace nlohmann;
 namespace
 {
   static std::atomic<bool> m_stop{ false };
+  static sph_keccak256_context ctx;
 
   static std::thread m_thread;
 
@@ -25,7 +28,17 @@ namespace
   static json m_get_target{ { "jsonrpc", "2.0" }, { "method", "getMinimumShareTarget" }, { "params", {} }, { "id", "tar" } };
   static json m_solution_base{ { "jsonrpc", "2.0" }, { "method", "submitShare" }, { "params", {} }, { "id", {} } };
 
-  static auto writebackHandler( char* body, size_t size, size_t nmemb, void* out ) -> size_t const
+  auto keccak256( std::string const& message ) -> std::string const
+  {
+    message_t data;
+    MinerState::hexToBytes( message, data );
+    sph_keccak256( &ctx, data.data(), data.size() );
+    hash_t out;
+    sph_keccak256_close( &ctx, out.data() );
+    return MinerState::bytesToString( out );
+  }
+
+  static auto writebackHandler( char* __restrict body, size_t size, size_t nmemb, void* __restrict out ) -> size_t const
   {
     *static_cast<json*>( out ) = json::parse( std::string( body, size * nmemb ) );
     return size * nmemb;
@@ -57,7 +70,7 @@ namespace
     return response;
   }
 
-  static auto updateState( bool full ) -> void
+  static auto updateState( bool const& full ) -> void
   {
     json request;
 
@@ -124,7 +137,7 @@ namespace
 
     while( sol.length() > 0 )
     {
-      std::string digest{ MinerState::keccak256( prefix + sol ) };
+      std::string digest{ keccak256( prefix + sol ) };
       BigUnsigned digestBU{ BigUnsignedInABase{ digest, 16 } };
 
       if( digestBU > MinerState::getTarget() )
@@ -195,6 +208,8 @@ namespace Commo
 
     m_get_diff["params"][0] = MinerState::getAddress();
     m_get_target["params"][0] = MinerState::getAddress();
+
+    sph_keccak256_init( &ctx );
 
     m_thread = std::thread( &netWorker );
   }

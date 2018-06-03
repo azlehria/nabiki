@@ -56,12 +56,12 @@ private:
 
   std::string m_name;
 
-  std::atomic<bool> m_stop;
-  std::atomic<bool> m_new_target;
-  std::atomic<bool> m_new_message;
+  bool m_stop;
+  bool m_new_target;
+  bool m_new_message;
 
-  std::atomic<uint64_t> m_hash_count;
-  std::atomic<uint64_t> m_hash_count_samples;
+  uint64_t m_hash_count;
+  uint64_t m_hash_count_samples;
   std::atomic<double> m_hash_average;
 
   double m_intensity;

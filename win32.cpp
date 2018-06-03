@@ -1,3 +1,5 @@
+#ifdef _MSC_VER
+
 #include "platforms.h"
 #include "hybridminer.h"
 
@@ -20,7 +22,7 @@ auto SetBasicState() -> void
   SetConsoleCtrlHandler( SignalHandler, TRUE );
 }
 
-auto UseOldUI() -> bool
+auto UseOldUI() -> bool const
 {
   static bool t_old_ui = []() -> bool
   {
@@ -53,3 +55,5 @@ auto WINAPI SignalHandler( DWORD dwSig ) -> BOOL
   }
   return FALSE;
 }
+
+#endif // _MSC_VER

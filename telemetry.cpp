@@ -17,7 +17,7 @@ namespace
   static struct mg_context* m_ctx;
   static bool m_started{ false };
 
-  static int32_t api_handler_json( struct mg_connection* conn, void* )
+  static int32_t api_handler_json( struct mg_connection* __restrict conn, void* )
   {
     nlohmann::json body;
     double hashrate{ 0 };
@@ -59,7 +59,7 @@ namespace
            << "Content-Type: application/json\r\n"
            << "Connection: close\r\n\r\n"
            << body.dump();
-    mg_printf( conn, ss_out.str().c_str() );
+    mg_printf( conn, "%s", ss_out.str().c_str() );
 
     return 200;
   }

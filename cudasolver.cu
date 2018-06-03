@@ -33,13 +33,13 @@ auto __cudaSafeCall( cudaError_t const& err, char const* file, int32_t const& li
     return;
   }
   std::cerr << "CUDA device " << device_id
-            << " encountered error #" << err << "in file '" << file
+            << " encountered error #" << err << " in file '" << file
             << "' in line " << line
             << " : " << cudaGetErrorString( err ) << ".\n";
   cudaError_t syncErr = cudaDeviceSynchronize();
   if( syncErr )
   {
-    std::cerr << "Synchronous error " << syncErr << ":"
+    std::cerr << "Synchronous error #" << syncErr << ": "
               << cudaGetErrorString( syncErr ) << " was also encountered.\n";
     }
     exit( EXIT_FAILURE );
@@ -392,7 +392,8 @@ auto CUDASolver::cudaResetSolution() -> void
 auto CUDASolver::pushTarget() -> void
 {
   uint64_t t_target{ getTarget() };
-  uint32_t target{ reinterpret_cast<uint2&>(t_target).x };
+  uint32_t target;
+  std::memcpy( &target, &t_target, 4 );
   cudaSafeCall( cudaMemcpyToSymbol( d_target, &target, 4, 0, cudaMemcpyHostToDevice) );
 
   m_new_target = false;

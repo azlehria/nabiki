@@ -1,5 +1,7 @@
 #include "platforms.h"
+#include "hybridminer.h"
 
+#include <cstring>
 #include <signal.h>
 #include <termios.h>
 
@@ -30,7 +32,7 @@ auto SetBasicState() -> void
   sigaction( SIGQUIT, &sig_handler, NULL );
 }
 
-auto UseOldUI() -> bool
+auto UseOldUI() -> bool const
 {
   return false;
 }

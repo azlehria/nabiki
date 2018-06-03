@@ -1,12 +1,7 @@
-#define __STDC_WANT_LIB_EXT1__ 1
-
-#include "platforms.h"
 #include "miner_state.h"
+#include "platforms.h"
 #include "hybridminer.h"
 #include "json.hpp"
-
-#define SPH_KECCAK_64 1
-#include "sph_keccak.h"
 
 #include <ctime>
 #include <cctype>
@@ -74,6 +69,9 @@ namespace
   static std::atomic<uint64_t> m_hash_count{ 0ull };
   static std::atomic<uint64_t> m_hash_count_printable{ 0ull };
   static message_t m_message;
+  static state_t m_midstate;
+  static std::atomic<bool> m_midstate_ready{ false };
+  static std::mutex m_midstate_mutex;
   static hash_t m_challenge_old;
   static std::mutex m_message_mutex;
   static std::atomic<bool> m_challenge_ready{ false };
@@ -85,10 +83,10 @@ namespace
   static std::string m_challenge_printable;
   static std::string m_address_printable;
   static std::atomic<uint64_t> m_target_num{ 0ull };
-  static BigUnsigned m_target{ 0ull };
-  static BigUnsigned m_maximum_target{ 1ull };
+  static BigUnsigned m_target{ 0u };
+  static BigUnsigned m_maximum_target{ 1u };
   static std::mutex m_target_mutex;
-  static std::atomic<bool> m_custom_diff{ false };
+  static bool m_custom_diff{ false };
   static std::atomic<uint64_t> m_diff{ 1ull };
   static std::atomic<bool> m_diff_ready{ false };
   static std::atomic<bool> m_new_solution{ false };
@@ -101,15 +99,15 @@ namespace
   static steady_clock::time_point m_round_start;
   static device_list_t m_cuda_devices;
   static device_map_t m_opencl_devices;
-  static std::atomic<uint32_t> m_cpu_threads{ 0ul };
+  static uint32_t m_cpu_threads{ 0ul };
   static std::string m_api_ports;
   static std::string m_api_allowed;
   static nlohmann::json m_json_config;
   static std::string m_token_name{ "0xBTC" };
-  static std::atomic<bool> m_submit_stale{ false };
-  static std::atomic<bool> m_debug{ false };
+  static bool m_submit_stale{ false };
+  static bool m_debug{ false };
 
-  static auto fromAscii( uint8_t const& c ) -> uint8_t
+  static auto fromAscii( uint8_t const& c ) -> uint8_t const
   {
     if( c >= '0' && c <= '9' )
       return ( c - '0' );
@@ -121,7 +119,7 @@ namespace
     throw std::runtime_error( "invalid character" );
   }
 
-  static auto ascii_r( uint8_t const& a, uint8_t const& b ) -> uint8_t
+  static auto ascii_r( uint8_t const& a, uint8_t const& b ) -> uint8_t const
   {
     return fromAscii( a ) * 16 + fromAscii( b );
   }
@@ -134,7 +132,7 @@ namespace
     }
   }
 
-  static auto printUiOldWindows( double const& timer, double const& hashrate ) -> std::string
+  static auto printUiOldWindows( double const& timer, double const& hashrate ) -> std::string const
   {
     std::stringstream ss_out;
     // print every every 5 seconds . . . more or less
@@ -158,7 +156,8 @@ namespace
 
     return ss_out.str();
   }
-  static auto printUi( double const& timer, double const& hashrate ) -> std::string
+
+  static auto printUi( double const& timer, double const& hashrate ) -> std::string const
   {
     std::stringstream ss_out;
     // maybe breaking the control codes into macros is a good idea . . .
@@ -203,6 +202,10 @@ namespace
 }
 
 // --------------------------------------------------------------------
+
+// make these available externally
+template auto MinerState::hexToBytes( std::string const& hex, message_t& bytes ) -> void;
+template auto MinerState::bytesToString( hash_t const& buffer )->std::string const;
 
 namespace MinerState
 {
@@ -487,7 +490,7 @@ namespace MinerState
     return ss_ts.str();
   }
 
-  auto getPrintableHashCount() -> uint64_t
+  auto getPrintableHashCount() -> uint64_t const&
   {
     return m_hash_count_printable;
   }
@@ -496,15 +499,10 @@ namespace MinerState
   auto hexToBytes( std::string const& hex, T& bytes ) -> void
   {
     assert( hex.length() % 2 == 0 );
-    // assert( bytes.size() == ( hex.length() / 2 - 1 ) );
     if( hex.substr( 0, 2 ) == "0x"s )
-    {
       HexToBytes( hex.substr( 2 ), &bytes[0] );
-    }
     else
-    {
       HexToBytes( hex, &bytes[0] );
-    }
   }
 
   template<typename T>
@@ -549,7 +547,7 @@ namespace MinerState
     if( count > 0 ) m_new_solution = true;
   }
 
-  auto getSolCount() -> uint64_t const
+  auto getSolCount() -> uint64_t const&
   {
     return m_sol_count;
   }
@@ -576,12 +574,19 @@ namespace MinerState
       std::memcpy( m_message.data(), temp.data(), 32 );
     }
 
+    if( !getSubmitStale() )
+    {
+      guard lock( m_solutions_mutex );
+      std::queue<uint64_t>().swap( m_solutions_queue );
+    }
+
     {
       guard lock( m_print_mutex );
       m_challenge_printable = challenge.substr( 2, 8 );
     }
 
     m_challenge_ready = true;
+    setMidstate();
   }
 
   auto getChallenge() -> std::string const
@@ -619,6 +624,7 @@ namespace MinerState
     }
 
     m_pool_address_ready = true;
+    setMidstate();
   }
 
   auto getPoolAddress() -> std::string const
@@ -671,8 +677,10 @@ namespace MinerState
     return m_message;
   }
 
-  auto getMidstate() -> state_t const
+  auto setMidstate() -> void
   {
+    if( !m_challenge_ready || !m_pool_address_ready ) return;
+
     uint64_t message[11]{ 0 };
 
     {
@@ -687,41 +695,50 @@ namespace MinerState
     C[3] = message[3] ^ message[8];
     C[4] = message[4] ^ message[9];
 
-    D[0] = ROTL64( C[1], 1 ) ^ C[4];
-    D[1] = ROTL64( C[2], 1 ) ^ C[0];
-    D[2] = ROTL64( C[3], 1 ) ^ C[1];
-    D[3] = ROTL64( C[4], 1 ) ^ C[2];
-    D[4] = ROTL64( C[0], 1 ) ^ C[3];
+    D[0] = rotl64( C[1], 1 ) ^ C[4];
+    D[1] = rotl64( C[2], 1 ) ^ C[0];
+    D[2] = rotl64( C[3], 1 ) ^ C[1];
+    D[3] = rotl64( C[4], 1 ) ^ C[2];
+    D[4] = rotl64( C[0], 1 ) ^ C[3];
 
     mid[0] = message[0] ^ D[0];
-    mid[1] = ROTL64( message[6] ^ D[1], 44 );
-    mid[2] = ROTL64( D[2], 43 );
-    mid[3] = ROTL64( D[3], 21 );
-    mid[4] = ROTL64( D[4], 14 );
-    mid[5] = ROTL64( message[3] ^ D[3], 28 );
-    mid[6] = ROTL64( message[9] ^ D[4], 20 );
-    mid[7] = ROTL64( message[10] ^ D[0] ^ 0x100000000ull, 3 );
-    mid[8] = ROTL64( 0x8000000000000000ull ^ D[1], 45 );
-    mid[9] = ROTL64( D[2], 61 );
-    mid[10] = ROTL64( message[1] ^ D[1], 1 );
-    mid[11] = ROTL64( message[7] ^ D[2], 6 );
-    mid[12] = ROTL64( D[3], 25 );
-    mid[13] = ROTL64( D[4], 8 );
-    mid[14] = ROTL64( D[0], 18 );
-    mid[15] = ROTL64( message[4] ^ D[4], 27 );
-    mid[16] = ROTL64( message[5] ^ D[0], 36 );
-    mid[17] = ROTL64( D[1], 10 );
-    mid[18] = ROTL64( D[2], 15 );
-    mid[19] = ROTL64( D[3], 56 );
-    mid[20] = ROTL64( message[2] ^ D[2], 62 );
-    mid[21] = ROTL64( message[8] ^ D[3], 55 );
-    mid[22] = ROTL64( D[4], 39 );
-    mid[23] = ROTL64( D[0], 41 );
-    mid[24] = ROTL64( D[1], 2 );
+    mid[1] = rotl64( message[6] ^ D[1], 44 );
+    mid[2] = rotl64( D[2], 43 );
+    mid[3] = rotl64( D[3], 21 );
+    mid[4] = rotl64( D[4], 14 );
+    mid[5] = rotl64( message[3] ^ D[3], 28 );
+    mid[6] = rotl64( message[9] ^ D[4], 20 );
+    mid[7] = rotl64( message[10] ^ D[0] ^ 0x100000000ull, 3 );
+    mid[8] = rotl64( 0x8000000000000000ull ^ D[1], 45 );
+    mid[9] = rotl64( D[2], 61 );
+    mid[10] = rotl64( message[1] ^ D[1], 1 );
+    mid[11] = rotl64( message[7] ^ D[2], 6 );
+    mid[12] = rotl64( D[3], 25 );
+    mid[13] = rotl64( D[4], 8 );
+    mid[14] = rotl64( D[0], 18 );
+    mid[15] = rotl64( message[4] ^ D[4], 27 );
+    mid[16] = rotl64( message[5] ^ D[0], 36 );
+    mid[17] = rotl64( D[1], 10 );
+    mid[18] = rotl64( D[2], 15 );
+    mid[19] = rotl64( D[3], 56 );
+    mid[20] = rotl64( message[2] ^ D[2], 62 );
+    mid[21] = rotl64( message[8] ^ D[3], 55 );
+    mid[22] = rotl64( D[4], 39 );
+    mid[23] = rotl64( D[0], 41 );
+    mid[24] = rotl64( D[1], 2 );
 
-    state_t ret;
-    std::memcpy( ret.data(), mid, 200 );
-    return ret;
+    {
+      guard lock( m_midstate_mutex );
+      std::memcpy( m_midstate.data(), mid, 200 );
+    }
+  }
+
+  auto getMidstate() -> state_t const
+  {
+    if( !m_midstate_ready ) setMidstate();
+
+    guard lock( m_midstate_mutex );
+    return m_midstate;
   }
 
   auto setAddress( std::string const& address ) -> void
@@ -748,7 +765,7 @@ namespace MinerState
     setDiff( diff );
   }
 
-  auto getCustomDiff() -> bool const
+  auto getCustomDiff() -> bool const&
   {
     return m_custom_diff;
   }
@@ -786,17 +803,17 @@ namespace MinerState
     return m_pool_url;
   }
 
-  auto getCudaDevices() -> device_list_t const
+  auto getCudaDevices() -> device_list_t const&
   {
     return m_cuda_devices;
   }
 
-  auto getClDevices() -> device_map_t const
+  auto getClDevices() -> device_map_t const&
   {
     return m_opencl_devices;
   }
 
-  auto getCpuThreads() -> uint32_t const
+  auto getCpuThreads() -> uint32_t const&
   {
     return m_cpu_threads;
   }
@@ -819,7 +836,7 @@ namespace MinerState
     }
   }
 
-  auto getTokenName() -> std::string const
+  auto getTokenName() -> std::string const&
   {
     return m_token_name;
   }
@@ -829,17 +846,17 @@ namespace MinerState
     m_submit_stale = submitStale;
   }
 
-  auto getSubmitStale() -> bool const
+  auto getSubmitStale() -> bool const&
   {
     return m_submit_stale;
   }
 
-  auto getTelemetryPorts() -> std::string const
+  auto getTelemetryPorts() -> std::string const&
   {
     return m_api_ports;
   }
 
-  auto getTelemetryAcl() -> std::string const
+  auto getTelemetryAcl() -> std::string const&
   {
     return m_api_allowed;
   }
@@ -849,20 +866,8 @@ namespace MinerState
     return m_diff_ready && m_challenge_ready && m_pool_address_ready;
   }
 
-  auto isDebug() -> bool const
+  auto isDebug() -> bool const&
   {
     return m_debug;
-  }
-
-  auto keccak256( std::string const& message ) -> std::string const
-  {
-    message_t data;
-    hexToBytes( message, data );
-    sph_keccak256_context ctx;
-    sph_keccak256_init( &ctx );
-    sph_keccak256( &ctx, data.data(), data.size() );
-    hash_t out;
-    sph_keccak256_close( &ctx, out.data() );
-    return bytesToString( out );
   }
 }
