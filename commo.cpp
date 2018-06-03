@@ -174,10 +174,10 @@ namespace
         else
         {
           ++solutionCount;
-          MinerState::incSolCount( 1 );
         }
       }
     }
+    MinerState::incSolCount( solutionCount );
   }
 
   static auto netWorker() -> void

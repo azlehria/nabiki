@@ -20,7 +20,7 @@ namespace MinerState
 
   auto getIncSearchSpace( uint64_t const& threads ) -> uint64_t const;
   auto resetCounter() -> void;
-  auto getPrintableHashCount() -> uint64_t const&;
+  auto getPrintableHashCount() -> uint64_t const;
   auto printStatus() -> void;
   auto getPrintableTimeStamp() -> std::string const;
 
@@ -30,7 +30,7 @@ namespace MinerState
   auto pushSolution( uint64_t const& sol ) -> void;
   auto getSolution() -> std::string const;
   auto incSolCount( uint64_t const& count = 1 ) -> void;
-  auto getSolCount() -> uint64_t const&;
+  auto getSolCount() -> uint64_t const;
 
   auto setTarget( std::string const& target ) -> void;
   auto getTarget() -> BigUnsigned const;

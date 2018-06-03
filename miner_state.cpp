@@ -490,7 +490,7 @@ namespace MinerState
     return ss_ts.str();
   }
 
-  auto getPrintableHashCount() -> uint64_t const&
+  auto getPrintableHashCount() -> uint64_t const
   {
     return m_hash_count_printable;
   }
@@ -547,7 +547,7 @@ namespace MinerState
     if( count > 0 ) m_new_solution = true;
   }
 
-  auto getSolCount() -> uint64_t const&
+  auto getSolCount() -> uint64_t const
   {
     return m_sol_count;
   }

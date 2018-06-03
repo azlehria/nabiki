@@ -14,6 +14,7 @@ auto UseOldUI() -> bool const;
 auto WINAPI SignalHandler( DWORD dwSig ) -> BOOL;
 
 #else // _MSC_VER
+#include "x86intrin.h"
 
 auto SignalHandler( int signal ) -> void;
 
