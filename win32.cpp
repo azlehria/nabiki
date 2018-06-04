@@ -9,6 +9,8 @@
 
 auto SetBasicState() -> void
 {
+  SetConsoleOutputCP( CP_UTF8 );
+
   char path[MAX_PATH];
   ExpandEnvironmentStringsA( "%ProgramFiles%\\NVIDIA Corporation\\NVSMI", path, MAX_PATH );
   SetDllDirectory( path );

@@ -17,6 +17,9 @@ using namespace nlohmann;
 
 namespace
 {
+  static uint_fast64_t solutionCount{ 0ull };
+  static uint_fast64_t devfeeCount{ 0ull };
+  static std::atomic<double> m_ping{ 0 };
   static std::atomic<bool> m_stop{ false };
   static sph_keccak256_context ctx;
 
@@ -62,6 +65,8 @@ namespace
     curl_easy_setopt( handle, CURLOPT_WRITEDATA, &response );
 
     curl_easy_perform( handle );
+
+    curl_easy_getinfo( handle, CURLINFO_CONNECT_TIME, &m_ping );
 
     // now we can get rid of it
     curl_slist_free_all( header );
@@ -132,8 +137,6 @@ namespace
       "0x"s + MinerState::getChallenge(),
       MinerState::getCustomDiff() };
     uint_fast16_t idCount{ 0u };
-    static uint_fast64_t solutionCount{ 0ull };
-    static uint_fast64_t devfeeCount{ 0ull };
 
     while( sol.length() > 0 )
     {
@@ -174,10 +177,10 @@ namespace
         else
         {
           ++solutionCount;
+          MinerState::incSolCount();
         }
       }
     }
-    MinerState::incSolCount( solutionCount );
   }
 
   static auto netWorker() -> void
@@ -220,5 +223,10 @@ namespace Commo
     m_thread.join();
 
     curl_global_cleanup();
+  }
+
+  auto GetPing() -> uint64_t const
+  {
+    return uint64_t(m_ping * 1000);
   }
 }

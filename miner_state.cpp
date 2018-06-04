@@ -134,11 +134,12 @@ namespace
 
   static auto printUiOldWindows( double const& timer, double const& hashrate ) -> std::string const
   {
-    std::stringstream ss_out;
     // print every every 5 seconds . . . more or less
     static auto time_counter{ steady_clock::now() + 5s };
     if( time_counter > steady_clock::now() ) return ""s;
     time_counter = steady_clock::now() + 5s;
+
+    std::stringstream ss_out;
 
     ss_out << MinerState::getPrintableTimeStamp()
            << std::setw( 10 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
@@ -159,6 +160,11 @@ namespace
 
   static auto printUi( double const& timer, double const& hashrate ) -> std::string const
   {
+    // print every every 100 milliseconds . . . more or less
+    static auto time_counter{ steady_clock::now() + 100ms };
+    if( time_counter > steady_clock::now() ) return ""s;
+    time_counter = steady_clock::now() + 100ms;
+
     std::stringstream ss_out;
     // maybe breaking the control codes into macros is a good idea . . .
     ss_out << "\x1b[s\x1b[2;22f\x1b[38;5;221m"sv

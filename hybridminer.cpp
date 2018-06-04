@@ -150,17 +150,14 @@ namespace HybridMiner
 
     Telemetry::init();
 
-    std::thread printer{ [] {
-    do
+    while( !m_stop )
     {
-      auto timerNext = steady_clock::now() + 100ms;
+      auto timerNext = steady_clock::now() + 1ms;
 
       MinerState::printStatus();
 
       std::this_thread::sleep_until( timerNext );
-    } while( !m_stop ); } };
-
-    printer.join();
+    }
 
     std::cerr << MinerState::getPrintableTimeStamp() << "Process exiting... stopping miner\n"sv;
 

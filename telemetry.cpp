@@ -2,6 +2,7 @@
 #include "types.h"
 #include "miner_state.h"
 #include "hybridminer.h"
+#include "commo.h"
 
 #include <cstdint>
 #include <cstring>
@@ -44,7 +45,7 @@ namespace
     body["hashrate"]["total"].emplace_back( uint64_t( hashrate ) );
     body["connection"] = nlohmann::json{ { "pool", MinerState::getPoolUrl() },
                            { "uptime", 0u },
-                           { "ping", 0u },
+                           { "ping", Commo::GetPing() },
                            { "failures", 0u },
                            { "error_log", {} } };
 
