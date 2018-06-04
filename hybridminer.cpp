@@ -28,6 +28,7 @@ namespace
   static uint_fast16_t m_solvers_cuda{ 0u };
   static uint_fast16_t m_solvers_cpu{ 0u };
   static uint_fast16_t m_solvers_cl{ 0u };
+  static steady_clock::time_point m_launch_time;
   static std::atomic<bool> m_stop{ false };
 
   static auto printUiBase() -> void
@@ -138,6 +139,8 @@ namespace HybridMiner
   // This is the "main" thread of execution
   auto run() -> void
   {
+    m_launch_time = steady_clock::now();
+
     SetBasicState();
 
     MinerState::initState();
@@ -218,5 +221,10 @@ namespace HybridMiner
       }
     }
     return ret;
+  }
+
+  auto getUptime() -> uint64_t const
+  {
+    return duration_cast<seconds>( steady_clock::now() - m_launch_time ).count();
   }
 }

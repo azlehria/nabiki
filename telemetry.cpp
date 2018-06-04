@@ -44,10 +44,10 @@ namespace
     body["algo"] = "keccak256"s;
     body["hashrate"]["total"].emplace_back( uint64_t( hashrate ) );
     body["connection"] = nlohmann::json{ { "pool", MinerState::getPoolUrl() },
-                           { "uptime", 0u },
-                           { "ping", Commo::GetPing() },
-                           { "failures", 0u },
-                           { "error_log", {} } };
+                                         { "uptime", HybridMiner::getUptime() },
+                                         { "ping", Commo::GetPing() },
+                                         { "failures", 0u },
+                                         { "error_log", {} } };
 
     body["results"]["diff_current"] = MinerState::getDiff();
     body["results"]["hashes_total"] = MinerState::getIncSearchSpace( 0u );
