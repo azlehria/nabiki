@@ -46,10 +46,13 @@ namespace
     body["connection"] = nlohmann::json{ { "pool", MinerState::getPoolUrl() },
                                          { "uptime", HybridMiner::getUptime() },
                                          { "ping", Commo::GetPing() },
-                                         { "failures", 0u },
+                                         { "failures", Commo::GetFailedCount() },
                                          { "error_log", {} } };
 
     body["results"]["diff_current"] = MinerState::getDiff();
+    body["results"]["shares_good"] = MinerState::getSolCount();
+    body["results"]["shares_total"] = Commo::GetTotalShares();
+    //body["results"]["avg_time"] = 0;
     body["results"]["hashes_total"] = MinerState::getIncSearchSpace( 0u );
 
     std::stringstream ss_out;

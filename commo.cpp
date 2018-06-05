@@ -19,6 +19,8 @@ namespace
 {
   static uint_fast64_t solutionCount{ 0ull };
   static uint_fast64_t devfeeCount{ 0ull };
+  static std::atomic<uint_fast64_t> failureCount{ 0ull };
+  static std::atomic<uint_fast64_t> totalCount{ 0ull };
   static std::atomic<double> m_ping{ 0 };
   static std::atomic<bool> m_stop{ false };
   static sph_keccak256_context ctx;
@@ -163,6 +165,8 @@ namespace
       sol = MinerState::getSolution();
     }
 
+    totalCount.fetch_add( idCount + 1 );
+
     json response{ doMethod( submission ) };
 
     for( auto& ret : response )
@@ -228,5 +232,15 @@ namespace Commo
   auto GetPing() -> uint64_t const
   {
     return uint64_t(m_ping * 1000);
+  }
+
+  auto GetTotalShares() -> uint64_t const
+  {
+    return totalCount;
+  }
+
+  auto GetFailedCount() -> uint64_t const
+  {
+    return failureCount;
   }
 }

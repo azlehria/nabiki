@@ -7,7 +7,10 @@ namespace Commo
 {
   auto Init() -> void;
   auto Cleanup() -> void;
+
   auto GetPing() -> uint64_t const;
+  auto GetTotalShares() -> uint64_t const;
+  auto GetFailedCount() -> uint64_t const;
 }
 
 #endif // !_COMMO_H_
