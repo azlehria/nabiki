@@ -13,7 +13,7 @@
 
 using namespace std::string_view_literals;
 
-std::string_view constexpr MINER_VERSION{ "Nabiki v0.1.1"sv };
+std::string_view constexpr MINER_VERSION{ "Nabiki v0.2.0"sv };
 
 namespace HybridMiner
 {

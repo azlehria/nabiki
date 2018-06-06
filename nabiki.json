@@ -21,7 +21,7 @@
   // Currently only HTTP is supported on either end, no other protocol
   // including HTTPS. The most common, and default, server port is 8586.
   // -------
-  "pool" : "http://0xminingpool.com:8586",
+  "pool" : "http://tokenminingpool.com:8080",
 
   // "debug" is currently unused - the purpose should be fairly obvious.
   // -------

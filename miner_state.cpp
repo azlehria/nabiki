@@ -144,12 +144,12 @@ namespace
     ss_out << MinerState::getPrintableTimeStamp()
            << std::setw( 10 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
            << hashrate / 1000000
-           << " MH/s  Sols:"
+           << " MH/s  Sols:"sv
            << std::setw( 6 ) << std::setfill( ' ' ) << m_sol_count
            << ( m_new_solution ? '^' : ' ' )
-           << " Search time: "
+           << " Search time: "sv
            << std::fixed << std::setprecision( 0 ) << std::setfill( '0' )
-           << std::setw( 2 ) << std::floor( timer / 60 ) << ":"
+           << std::setw( 2 ) << std::floor( timer / 60 ) << ":"sv
            << std::setw( 2 ) << std::floor( std::fmod( timer, 60 ) )
            << '\n';
 
@@ -172,7 +172,7 @@ namespace
            << hashrate / 1000000
            << "\x1b[2;75f\x1b[38;5;33m"sv
            << std::fixed << std::setprecision( 0 ) << std::setfill( '0' )
-           << std::setw( 2 ) << std::floor( timer / 60 ) << ":"
+           << std::setw( 2 ) << std::floor( timer / 60 ) << ":"sv
            << std::setw( 2 ) << std::floor( std::fmod( timer, 60 ) )
            << "\x1b[3;14f\x1b[38;5;34m"sv
            << m_diff
@@ -190,11 +190,11 @@ namespace
       uint_fast32_t line{ 5u };
       for( auto& device : HybridMiner::getDeviceStates() )
       {
-        ss_out << "\x1b[0m\x1b[" << line << ";0f" << device.name.substr( 12 )
-               << "\x1b[" << line << ";9f" << device.temperature << " C"
+        ss_out << "\x1b[0m\x1b["sv << line << ";0f"sv << device.name.substr( 12 )
+               << "\x1b["sv << line << ";9f"sv << device.temperature << " C"sv
                << std::setw( 10 ) << std::setprecision( 2 ) << device.hashrate / 1000000
-               << " MH/s\t" << device.core << " MHz\t" << device.memory << " MHz\t"
-               << std::setw( 3 ) << device.fan << "%\t" << device.power << "W\n";
+               << " MH/s\t"sv << device.core << " MHz\t"sv << device.memory << " MHz\t"sv
+               << std::setw( 3 ) << device.fan << "%\t"sv << device.power << "W\n"sv;
         ++line;
       }
     }
@@ -565,6 +565,23 @@ namespace MinerState
     {
       guard lock( m_message_mutex );
       std::memcpy( temp.data(), m_message.data(), 52 );
+    }
+
+    return bytesToString( temp );
+  }
+
+  auto getOldPrefix() -> std::string const
+  {
+    prefix_t temp;
+
+    {
+      guard lock( m_message_mutex );
+      std::memcpy( temp.data(), m_challenge_old.data(), 32 );
+    }
+
+    {
+      guard lock( m_message_mutex );
+      std::memcpy( &temp[32], m_message.data(), 20 );
     }
 
     return bytesToString( temp );

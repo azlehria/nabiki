@@ -38,6 +38,7 @@ namespace MinerState
   auto getMaximumTarget() -> BigUnsigned const;
 
   auto getPrefix() -> std::string const;
+  auto getOldPrefix() -> std::string const;
   auto setChallenge( std::string const& challenge ) -> void;
   auto getChallenge() -> std::string const;
   auto getPreviousChallenge() -> std::string const;

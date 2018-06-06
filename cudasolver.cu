@@ -337,6 +337,35 @@ void cuda_mine( uint64_t* __restrict__ solution, uint32_t* __restrict__ solution
 
 auto CUDASolver::cudaInit() -> void
 {
+  if( !m_gpu_initialized )
+  {
+    while( cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync ) == cudaErrorSetOnActiveProcess )
+    {
+      cudaSafeCall( cudaDeviceReset() );
+    }
+
+    cudaSafeCall( cudaGetLastError() );
+
+    cudaSafeCall( cudaSetDevice( m_device ) );
+
+    cudaSafeCall( cudaMalloc( reinterpret_cast<void**>( &d_solution_count ), 4 ) );
+    cudaSafeCall( cudaMalloc( reinterpret_cast<void**>( &d_solutions ), 256 * 8 ) );
+    cudaSafeCall( cudaMallocHost( reinterpret_cast<void**>( &h_solution_count ), 4 ) );
+    cudaSafeCall( cudaMallocHost( reinterpret_cast<void**>( &h_solutions ), 256 * 8 ) );
+
+    cudaResetSolution();
+
+    m_gpu_initialized = true;
+  }
+
+  char busId[13];
+  cudaDeviceGetPCIBusId( busId, 13, m_device );
+  nvmlDeviceGetHandleByPciBusId( busId, &m_nvml_handle );
+
+  char t_name[256u];
+  nvmlDeviceGetName( m_nvml_handle, t_name, 256u );
+  m_name = std::string( t_name );
+
   cudaDeviceProp device_prop;
   cudaGetDeviceProperties( &device_prop, m_device );
 
@@ -350,23 +379,6 @@ auto CUDASolver::cudaInit() -> void
 
   m_block.x = compute_version > 500 ? TPB50 : TPB35;
   m_grid.x = uint32_t( ( m_threads + m_block.x - 1 ) / m_block.x );
-
-  if( !m_gpu_initialized )
-  {
-    // CPU usage goes _insane_ without this.
-    cudaSafeCall( cudaDeviceReset() );
-    // so we don't actually _use_ L1 or local memory . . .
-    cudaSafeCall( cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync ) );
-
-    cudaSafeCall( cudaMalloc( reinterpret_cast<void**>(&d_solution_count), 4 ) );
-    cudaSafeCall( cudaMallocHost( reinterpret_cast<void**>(&h_solution_count), 4 ) );
-    cudaSafeCall( cudaMalloc( reinterpret_cast<void**>(&d_solutions), 256*8 ) );
-    cudaSafeCall( cudaMallocHost( reinterpret_cast<void**>(&h_solutions), 256*8 ) );
-
-    cudaResetSolution();
-
-    m_gpu_initialized = true;
-  }
 }
 
 auto CUDASolver::cudaCleanup() -> void
@@ -374,8 +386,8 @@ auto CUDASolver::cudaCleanup() -> void
   cudaSafeCall( cudaThreadSynchronize() );
 
   cudaSafeCall( cudaFree( d_solution_count ) );
-  cudaSafeCall( cudaFreeHost( h_solution_count ) );
   cudaSafeCall( cudaFree( d_solutions ) );
+  cudaSafeCall( cudaFreeHost( h_solution_count ) );
   cudaSafeCall( cudaFreeHost( h_solutions ) );
 
   cudaSafeCall( cudaDeviceReset() );
@@ -408,30 +420,28 @@ auto CUDASolver::pushMessage() -> void
 
 auto CUDASolver::findSolution() -> void
 {
-  cudaSafeCall( cudaSetDevice( m_device ) );
-
   cudaInit();
 
-  //void* func = &cuda_mine;
-  //uint64_t search_space[1];
-  //std::vector<void*> args{ &d_solutions, &d_solution_count, &search_space };
+  void* func = &cuda_mine;
+  uint64_t search_space[1];
+  std::vector<void*> args{ &d_solutions, &d_solution_count, &search_space };
 
-  //void* t_mid;
-  //void* t_target;
-  //cudaSafeCall( cudaGetSymbolAddress( &t_target, d_target ) );
-  //cudaSafeCall( cudaGetSymbolAddress( &t_mid, d_mid ) );
+  void* t_mid;
+  void* t_target;
+  cudaSafeCall( cudaGetSymbolAddress( &t_target, d_target ) );
+  cudaSafeCall( cudaGetSymbolAddress( &t_mid, d_mid ) );
 
   while( !m_stop )
   {
     if( m_new_target ) { pushTarget(); }
     if( m_new_message ) { pushMessage(); }
 
-    //search_space[0] = getNextSearchSpace();
+    search_space[0] = getNextSearchSpace();
 
-    //cudaError_t syncErr = cudaLaunchKernel( func, m_grid, m_block, args.data() );
+    cudaError_t syncErr = cudaLaunchKernel( func, m_grid, m_block, args.data() );
 
-    cuda_mine <<< m_grid, m_block >>> ( d_solutions, d_solution_count, getNextSearchSpace() );
-    cudaError_t syncErr = cudaGetLastError();
+    //cuda_mine <<< m_grid, m_block >>> ( d_solutions, d_solution_count, getNextSearchSpace() );
+    //cudaError_t syncErr = cudaGetLastError();
     cudaError_t asyncErr = cudaDeviceSynchronize();
     if( syncErr | asyncErr != cudaSuccess )
     {

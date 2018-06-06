@@ -1,6 +1,4 @@
 #include <cmath>
-#include <nvml.h>
-#include <cuda_runtime_api.h>
 #include "cudasolver.h"
 
 // don't put this in the header . . .
@@ -23,14 +21,6 @@ m_device( device ),
 m_grid( 1u ),
 m_block( 1u )
 {
-  char busId[13];
-  cudaDeviceGetPCIBusId( busId, 13, device );
-  nvmlDeviceGetHandleByPciBusId( busId, &m_nvml_handle );
-
-  char t_name[256u];
-  nvmlDeviceGetName( m_nvml_handle, t_name, 256u );
-  m_name = std::string( t_name );
-
   m_run_thread = std::thread( &CUDASolver::findSolution, this );
 }
 

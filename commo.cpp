@@ -9,17 +9,22 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <curl/curl.h>
 
 using namespace std::literals::string_literals;
 using namespace std::chrono;
 using namespace nlohmann;
 
+typedef std::lock_guard<std::mutex> guard;
+
 namespace
 {
   static uint_fast64_t solutionCount{ 0ull };
   static uint_fast64_t devfeeCount{ 0ull };
   static std::atomic<uint_fast64_t> failureCount{ 0ull };
+  static std::vector<std::string> connectionErrors;
+  static std::mutex connectionMutex;
   static std::atomic<uint_fast64_t> totalCount{ 0ull };
   static std::atomic<double> m_ping{ 0 };
   static std::atomic<bool> m_stop{ false };
@@ -33,7 +38,7 @@ namespace
   static json m_get_target{ { "jsonrpc", "2.0" }, { "method", "getMinimumShareTarget" }, { "params", {} }, { "id", "tar" } };
   static json m_solution_base{ { "jsonrpc", "2.0" }, { "method", "submitShare" }, { "params", {} }, { "id", {} } };
 
-  auto keccak256( std::string const& message ) -> std::string const
+  static auto keccak256( std::string const& message ) -> std::string const
   {
     message_t data;
     MinerState::hexToBytes( message, data );
@@ -41,6 +46,16 @@ namespace
     hash_t out;
     sph_keccak256_close( &ctx, out.data() );
     return MinerState::bytesToString( out );
+  }
+
+  static auto logConnectionError( std::string const& error ) -> void
+  {
+    ++failureCount;
+    MinerState::pushLog( error );
+    {
+      guard lock( connectionMutex );
+      connectionErrors.push_back( error );
+    }
   }
 
   static auto writebackHandler( char* __restrict body, size_t size, size_t nmemb, void* __restrict out ) -> size_t const
@@ -55,10 +70,13 @@ namespace
     std::string body = j.dump();
 
     CURL* handle = curl_easy_init();
+    char errstr[CURL_ERROR_SIZE]{ 0 };
 
     // tutorials be damned: _don't_ delete this until after curl_easy_perform is done!
-    curl_slist* header = curl_slist_append( NULL, "Content-Type: application/json" );
+    struct curl_slist* header = curl_slist_append( NULL, "Content-Type: application/json" );
     curl_easy_setopt( handle, CURLOPT_HTTPHEADER, header );
+
+    curl_easy_setopt( handle, CURLOPT_ERRORBUFFER, errstr );
 
     curl_easy_setopt( handle, CURLOPT_URL, MinerState::getPoolUrl().c_str() );
     curl_easy_setopt( handle, CURLOPT_POSTFIELDS, body.c_str() );
@@ -66,7 +84,40 @@ namespace
     curl_easy_setopt( handle, CURLOPT_WRITEFUNCTION, writebackHandler );
     curl_easy_setopt( handle, CURLOPT_WRITEDATA, &response );
 
-    curl_easy_perform( handle );
+    CURLcode errcode{ curl_easy_perform( handle ) };
+
+    if( errcode != CURLE_OK )
+    {
+      logConnectionError( strlen( errstr ) ? errstr : curl_easy_strerror( errcode ) );
+
+      switch( errcode )
+      {
+        case CURLE_FAILED_INIT:
+          MinerState::pushLog( "Fatal error: libcURL failed to initialize."s );
+          std::exit( EXIT_FAILURE );
+          break;
+        case CURLE_UNSUPPORTED_PROTOCOL:
+        case CURLE_URL_MALFORMAT:
+          MinerState::pushLog( "Fatal error: pool URL malformed." );
+          std::exit( EXIT_FAILURE );
+          break;
+        case CURLE_OUT_OF_MEMORY:
+          MinerState::pushLog( "Fatal error: libcURL could not allocate memory."s );
+          std::exit( EXIT_FAILURE );
+          break;
+        case CURLE_COULDNT_RESOLVE_HOST:
+        case CURLE_COULDNT_CONNECT:
+        case CURLE_HTTP_POST_ERROR:
+        case CURLE_TOO_MANY_REDIRECTS:
+        case CURLE_GOT_NOTHING:
+        case CURLE_SEND_ERROR:
+        case CURLE_RECV_ERROR:
+          response = errcode;
+          break;
+        default:
+          ; // do nothing
+      }
+    }
 
     curl_easy_getinfo( handle, CURLINFO_CONNECT_TIME, &m_ping );
 
@@ -130,6 +181,7 @@ namespace
     if( sol.empty() ) return;
 
     std::string prefix{ MinerState::getPrefix() };
+    std::string oldPrefix{ MinerState::getOldPrefix() };
 
     json submission;
     json solParams{ 0,
@@ -145,11 +197,34 @@ namespace
       std::string digest{ keccak256( prefix + sol ) };
       BigUnsigned digestBU{ BigUnsignedInABase{ digest, 16 } };
 
+      // I know, this is so incredibly ugly
       if( digestBU > MinerState::getTarget() )
       {
-        MinerState::pushLog( "CPU verification failed."s );
-        sol = MinerState::getSolution();
-        continue;
+        digest = keccak256( oldPrefix + sol );
+        digestBU = BigUnsignedInABase{ digest, 16 };
+        bool submitAnyway{ false };
+
+        if( digestBU <= MinerState::getTarget() )
+        {
+          if( MinerState::getSubmitStale() )
+          {
+            submitAnyway = true;
+          }
+          else
+          {
+            MinerState::pushLog( "Stale solution; not submitting."s );
+          }
+        }
+        else
+        {
+          MinerState::pushLog( "CPU verification failed."s );
+        }
+
+        if( !submitAnyway )
+        {
+          sol = MinerState::getSolution();
+          continue;
+        }
       }
 
       solParams[0] = "0x"s + sol;
@@ -168,6 +243,13 @@ namespace
     totalCount.fetch_add( idCount + 1 );
 
     json response{ doMethod( submission ) };
+
+    while( response.is_number_integer() )
+    {
+      MinerState::pushLog( "Retrying in 2 seconds . . ."s );
+      std::this_thread::sleep_for( 2s );
+      response = doMethod( submission );
+    }
 
     for( auto& ret : response )
     {
@@ -239,8 +321,14 @@ namespace Commo
     return totalCount;
   }
 
-  auto GetFailedCount() -> uint64_t const
+  auto GetConnectionErrorCount() -> uint64_t const
   {
     return failureCount;
+  }
+
+  auto GetConnectionErrorLog() -> std::vector<std::string> const
+  {
+    guard lock( connectionMutex );
+    return connectionErrors;
   }
 }

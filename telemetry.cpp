@@ -46,8 +46,8 @@ namespace
     body["connection"] = nlohmann::json{ { "pool", MinerState::getPoolUrl() },
                                          { "uptime", HybridMiner::getUptime() },
                                          { "ping", Commo::GetPing() },
-                                         { "failures", Commo::GetFailedCount() },
-                                         { "error_log", {} } };
+                                         { "failures", Commo::GetConnectionErrorCount() },
+                                         { "error_log", Commo::GetConnectionErrorLog() } };
 
     body["results"]["diff_current"] = MinerState::getDiff();
     body["results"]["shares_good"] = MinerState::getSolCount();
