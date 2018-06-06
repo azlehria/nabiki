@@ -47,6 +47,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <EmbedManifest>true</EmbedManifest>
+    <OutDir>$(SolutionDir)dist\</OutDir>
+    <IntDir>build\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -90,6 +92,8 @@
       </DisableSpecificWarnings>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <MinimalRebuild>true</MinimalRebuild>
+      <EnableEnhancedInstructionSet />
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -137,6 +141,7 @@
     </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="miner_state.cpp" />
+    <None Include="posix.cpp" />
     <ClCompile Include="telemetry.cpp" />
     <ClCompile Include="win32.cpp" />
   </ItemGroup>
@@ -162,13 +167,23 @@
     <ClInclude Include="types.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
     <None Include="CivetWeb\handle_form.inl" />
     <None Include="CivetWeb\md5.inl" />
     <None Include="CivetWeb\sha1.inl" />
     <None Include="clsolver.cl" />
+    <Text Include="LICENSE">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
+      <FileType>Document</FileType>
+    </Text>
+    <None Include="Makefile" />
+    <None Include="nabiki.json" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="version.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="README.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

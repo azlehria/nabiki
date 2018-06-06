@@ -3,13 +3,13 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="clsolver.cpp">
-      <Filter>OpenCL</Filter>
+      <Filter>Mining Backend\OpenCL</Filter>
     </ClCompile>
     <ClCompile Include="cudasolver.cpp">
-      <Filter>CUDA</Filter>
+      <Filter>Mining Backend\CUDA</Filter>
     </ClCompile>
     <ClCompile Include="cpusolver.cpp">
-      <Filter>CPU</Filter>
+      <Filter>Mining Backend\CPU</Filter>
     </ClCompile>
     <ClCompile Include="commo.cpp">
       <Filter>Network</Filter>
@@ -28,12 +28,14 @@
     <ClCompile Include="BigInt\BigUnsignedInABase.cpp">
       <Filter>Libs\BigInt</Filter>
     </ClCompile>
-    <ClCompile Include="win32.cpp" />
     <ClCompile Include="telemetry.cpp">
       <Filter>Network</Filter>
     </ClCompile>
     <ClCompile Include="CivetWeb\civetweb.c">
       <Filter>Libs\CivetWeb</Filter>
+    </ClCompile>
+    <ClCompile Include="win32.cpp">
+      <Filter>Platforms</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -65,13 +67,13 @@
       <Filter>Libs\BigInt</Filter>
     </ClInclude>
     <ClInclude Include="clsolver.h">
-      <Filter>OpenCL</Filter>
+      <Filter>Mining Backend\OpenCL</Filter>
     </ClInclude>
     <ClInclude Include="cudasolver.h">
-      <Filter>CUDA</Filter>
+      <Filter>Mining Backend\CUDA</Filter>
     </ClInclude>
     <ClInclude Include="cpusolver.h">
-      <Filter>CPU</Filter>
+      <Filter>Mining Backend\CPU</Filter>
     </ClInclude>
     <ClInclude Include="commo.h">
       <Filter>Network</Filter>
@@ -82,17 +84,17 @@
     <ClInclude Include="sph_keccak.h">
       <Filter>Libs</Filter>
     </ClInclude>
-    <ClInclude Include="isolver.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="platforms.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="telemetry.h">
       <Filter>Network</Filter>
     </ClInclude>
     <ClInclude Include="CivetWeb\civetweb.h">
       <Filter>Libs\CivetWeb</Filter>
+    </ClInclude>
+    <ClInclude Include="platforms.h">
+      <Filter>Platforms</Filter>
+    </ClInclude>
+    <ClInclude Include="isolver.h">
+      <Filter>Mining Backend</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -101,15 +103,6 @@
     </Filter>
     <Filter Include="Libs\BigInt">
       <UniqueIdentifier>{afb5a3fa-f519-45ad-880b-00f5eaa0c822}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="OpenCL">
-      <UniqueIdentifier>{f067f171-c5b5-4866-8314-518b45779a2a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="CUDA">
-      <UniqueIdentifier>{c86fa1c3-d580-4d78-a779-28ce46cf885f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="CPU">
-      <UniqueIdentifier>{8193b5e0-8639-441c-bdda-e09fb2e2ecb6}</UniqueIdentifier>
     </Filter>
     <Filter Include="Network">
       <UniqueIdentifier>{7c90f7ae-809f-436f-b20e-5a6e00f2f96a}</UniqueIdentifier>
@@ -120,18 +113,39 @@
     <Filter Include="Libs\CivetWeb">
       <UniqueIdentifier>{20be8fe6-c5e8-4acf-b37b-f43c396078d6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Platforms">
+      <UniqueIdentifier>{c28d8a20-aadc-4e10-890b-db68525a28cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Platforms\Excluded POSIX">
+      <UniqueIdentifier>{5043c406-4e3a-42ca-bc41-97b04a3078e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Distributable Files">
+      <UniqueIdentifier>{caa6e0d2-c88d-4a42-889c-b811bef1b6e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mining Backend">
+      <UniqueIdentifier>{230f9946-6161-4e25-9408-7420ace72f4f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mining Backend\CPU">
+      <UniqueIdentifier>{8193b5e0-8639-441c-bdda-e09fb2e2ecb6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mining Backend\CUDA">
+      <UniqueIdentifier>{c86fa1c3-d580-4d78-a779-28ce46cf885f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mining Backend\OpenCL">
+      <UniqueIdentifier>{f067f171-c5b5-4866-8314-518b45779a2a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="version.manifest" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cudasolver.cu">
-      <Filter>CUDA</Filter>
+      <Filter>Mining Backend\CUDA</Filter>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="clsolver.cl">
-      <Filter>OpenCL</Filter>
+      <Filter>Mining Backend\OpenCL</Filter>
     </None>
     <None Include="CivetWeb\handle_form.inl">
       <Filter>Libs\CivetWeb</Filter>
@@ -142,5 +156,23 @@
     <None Include="CivetWeb\sha1.inl">
       <Filter>Libs\CivetWeb</Filter>
     </None>
+    <None Include=".gitignore" />
+    <None Include="Makefile">
+      <Filter>Platforms\Excluded POSIX</Filter>
+    </None>
+    <None Include="posix.cpp">
+      <Filter>Platforms\Excluded POSIX</Filter>
+    </None>
+    <None Include="nabiki.json">
+      <Filter>Distributable Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="LICENSE">
+      <Filter>Distributable Files</Filter>
+    </Text>
+    <Text Include="README.txt">
+      <Filter>Distributable Files</Filter>
+    </Text>
   </ItemGroup>
 </Project>
