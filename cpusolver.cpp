@@ -40,7 +40,8 @@ m_start( steady_clock::now() )
 
 CPUSolver::~CPUSolver()
 {
-  m_run_thread.join();
+  if( m_run_thread.joinable() )
+    m_run_thread.join();
 }
 
 auto CPUSolver::stopFinding() -> void

@@ -37,12 +37,12 @@ auto __cudaSafeCall( cudaError_t const& err, char const* file, int32_t const& li
             << "' in line " << line
             << " : " << cudaGetErrorString( err ) << ".\n";
   cudaError_t syncErr = cudaDeviceSynchronize();
-  if( syncErr )
+  if( syncErr && syncErr != err )
   {
     std::cerr << "Synchronous error #" << syncErr << ": "
               << cudaGetErrorString( syncErr ) << " was also encountered.\n";
-    }
-    exit( EXIT_FAILURE );
+  }
+  std::exit( EXIT_FAILURE );
 #endif
 }
 
@@ -454,7 +454,7 @@ auto CUDASolver::findSolution() -> void
                   << ".\x1b[0m\n"
                   << "Check your hardware configuration.\n";
       }
-      if( asyncErr )
+      if( asyncErr && asyncErr != syncErr )
       {
         std::cerr << "Kernel launch encountered asynchronous error "
                   << asyncErr
@@ -463,7 +463,7 @@ auto CUDASolver::findSolution() -> void
                   << ".\x1b[0m\n"
                   << "Check your hardware configuration.\n";
       }
-      exit( EXIT_FAILURE );
+      std::exit( EXIT_FAILURE );
     }
 
     cudaSafeCall( cudaMemcpy( h_solution_count, d_solution_count, 4, cudaMemcpyDeviceToHost ) );

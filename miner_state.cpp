@@ -20,6 +20,7 @@
 #include <string_view>
 #include <algorithm>
 #include <cuda_runtime.h>
+#include <nvml.h>
 
 #ifdef __GNUC__
 #  pragma GCC diagnostic push
@@ -100,6 +101,7 @@ namespace
   static device_list_t m_cuda_devices;
   static device_map_t m_opencl_devices;
   static uint32_t m_cpu_threads{ 0ul };
+  static std::string m_worker_name;
   static std::string m_api_ports;
   static std::string m_api_allowed;
   static nlohmann::json m_json_config;
@@ -121,25 +123,24 @@ namespace
 
   static auto ascii_r( uint8_t const& a, uint8_t const& b ) -> uint8_t const
   {
-    return fromAscii( a ) * 16 + fromAscii( b );
+    return fromAscii( a ) << 4 ^ fromAscii( b );
   }
 
-  static auto HexToBytes( std::string const& hex, uint8_t bytes[] ) -> void
+  template<typename T>
+  static auto HexToBytes( std::string_view const& hex, T& bytes ) -> void
   {
-    for( std::string::size_type i = 0, j = 0; i < hex.length(); i += 2, ++j )
+    for( std::string_view::size_type i = 0, j = 0; i < hex.length(); i += 2, ++j )
     {
       bytes[j] = ascii_r( hex[i], hex[i + 1] );
     }
   }
 
-  static auto printUiOldWindows( double const& timer, double const& hashrate ) -> std::string const
+  static auto printUiOldWindows( double const& timer, double const& hashrate, std::ostream& ss_out ) -> std::ostream&
   {
     // print every every 5 seconds . . . more or less
     static auto time_counter{ steady_clock::now() + 5s };
-    if( time_counter > steady_clock::now() ) return ""s;
+    if( time_counter > steady_clock::now() ) return ss_out;
     time_counter = steady_clock::now() + 5s;
-
-    std::stringstream ss_out;
 
     ss_out << MinerState::getPrintableTimeStamp()
            << std::setw( 10 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
@@ -155,17 +156,16 @@ namespace
 
     m_new_solution = false;
 
-    return ss_out.str();
+    return ss_out;
   }
 
-  static auto printUi( double const& timer, double const& hashrate ) -> std::string const
+  static auto printUi( double const& timer, double const& hashrate, std::ostream& ss_out ) -> std::ostream&
   {
     // print every every 100 milliseconds . . . more or less
     static auto time_counter{ steady_clock::now() + 100ms };
-    if( time_counter > steady_clock::now() ) return ""s;
+    if( time_counter > steady_clock::now() ) return ss_out;
     time_counter = steady_clock::now() + 100ms;
 
-    std::stringstream ss_out;
     // maybe breaking the control codes into macros is a good idea . . .
     ss_out << "\x1b[s\x1b[2;22f\x1b[38;5;221m"sv
            << std::setw( 8 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
@@ -203,19 +203,19 @@ namespace
            << std::setw( 25 ) << m_hash_count_printable
            << "\x1b[0m\x1b[u"sv;
 
-    return ss_out.str();
+    return ss_out;
   }
 }
 
 // --------------------------------------------------------------------
 
 // make these available externally
-template auto MinerState::hexToBytes( std::string const& hex, message_t& bytes ) -> void;
+template auto MinerState::hexToBytes( std::string_view const& hex, message_t& bytes ) -> void;
 template auto MinerState::bytesToString( hash_t const& buffer )->std::string const;
 
 namespace MinerState
 {
-  auto initState() -> void
+  auto Init() -> void
   {
     std::ifstream in( "nabiki.json" );
     if( !in )
@@ -242,8 +242,8 @@ namespace MinerState
       std::exit( EXIT_FAILURE );
     }
 
-    setAddress( m_json_config["address"] );
-    setPoolUrl( m_json_config["pool"] );
+    setAddress( m_json_config["address"].get<std::string>() );
+    setPoolUrl( m_json_config["pool"].get<std::string>() );
 
     // this has to come before diff is set
     if( m_json_config.find( "token" ) != m_json_config.end() &&
@@ -307,6 +307,10 @@ namespace MinerState
         m_cuda_devices.emplace_back( i, DEFAULT_INTENSITY );
       }
     }
+    if( m_cuda_devices.size() > 0u )
+    {
+      nvmlInit();
+    }
 
     if( m_json_config.find( "opencl" ) != m_json_config.end() &&
         m_json_config["opencl"].is_object() &&
@@ -348,6 +352,12 @@ namespace MinerState
         m_json_config["threads"].get<uint32_t>() > 0 )
     {
       m_cpu_threads = m_json_config["threads"].get<uint32_t>();
+    }
+
+    if( m_json_config.find( "worker_name" ) != m_json_config.end() &&
+        m_json_config["worker_name"].is_string() )
+    {
+      m_worker_name = m_json_config["worker_name"].get<std::string>();
     }
 
     if( m_json_config.find( "telemetry" ) != m_json_config.end() )
@@ -435,7 +445,7 @@ namespace MinerState
 
   auto printStatus() -> void
   {
-    if( m_hash_count <= 0 ) return;
+    if( m_hash_count == 0 ) return;
 
     double timer{ static_cast<double>( duration_cast<milliseconds>( steady_clock::now() - m_round_start ).count() ) / 1000 };
 
@@ -445,32 +455,25 @@ namespace MinerState
       hashrate += temp;
     }
 
-    static auto foo = std::bind( ( UseOldUI() ? ::printUiOldWindows : ::printUi ), std::cref( timer ), std::cref( hashrate ) );
+    static auto foo = std::bind( ( UseOldUI() ? ::printUiOldWindows : ::printUi ),
+                                 std::cref( timer ),
+                                 std::cref( hashrate ),
+                                 std::placeholders::_1 );
 
-    std::stringstream ss_out;
-
-    ss_out << getLog() << foo();
-
-    std::cout << ss_out.str();
+    foo( getLog( std::cout ) );
   }
 
-  auto getLog() -> std::string const
+  auto getLog( std::ostream& outstream ) -> std::ostream&
   {
-    std::stringstream ss_log;
+    guard lock( m_log_mutex );
 
+    while( m_log.size() > 0 )
     {
-      guard lock( m_log_mutex );
-
-      if( m_log.size() == 0 ) return ""s;
-
-      for( uint_fast8_t i{ 0 }; i < 5 && m_log.size() != 0; ++i )
-      {
-        ss_log << m_log.front();
-        m_log.pop();
-      }
+      outstream << m_log.front();
+      m_log.pop();
     }
 
-    return ss_log.str();
+    return outstream;
   }
 
   auto pushLog( std::string const& message ) -> void
@@ -502,13 +505,13 @@ namespace MinerState
   }
 
   template<typename T>
-  auto hexToBytes( std::string const& hex, T& bytes ) -> void
+  auto hexToBytes( std::string_view const& hex, T& bytes ) -> void
   {
     assert( hex.length() % 2 == 0 );
     if( hex.substr( 0, 2 ) == "0x"s )
-      HexToBytes( hex.substr( 2 ), &bytes[0] );
+      HexToBytes( hex.substr( 2 ), bytes );
     else
-      HexToBytes( hex, &bytes[0] );
+      HexToBytes( hex, bytes );
   }
 
   template<typename T>
@@ -587,7 +590,7 @@ namespace MinerState
     return bytesToString( temp );
   }
 
-  auto setChallenge( std::string const& challenge ) -> void
+  auto setChallenge( std::string_view const& challenge ) -> void
   {
     hash_t temp;
     hexToBytes( challenge, temp );
@@ -636,7 +639,7 @@ namespace MinerState
     return bytesToString( temp );
   }
 
-  auto setPoolAddress( std::string const& address ) -> void
+  auto setPoolAddress( std::string_view const& address ) -> void
   {
     hash_t temp;
     hexToBytes( address, temp );
@@ -662,7 +665,7 @@ namespace MinerState
     return bytesToString( temp );
   }
 
-  auto setTarget( std::string const& target ) -> void
+  auto setTarget( std::string_view const& target ) -> void
   {
     assert( target.length() <= ( UINT256_LENGTH ) );
 
@@ -764,7 +767,7 @@ namespace MinerState
     return m_midstate;
   }
 
-  auto setAddress( std::string const& address ) -> void
+  auto setAddress( std::string_view const& address ) -> void
   {
     {
       guard lock( m_address_mutex );
@@ -806,12 +809,13 @@ namespace MinerState
     return m_diff;
   }
 
-  auto setPoolUrl( std::string const& pool ) -> void
+  auto setPoolUrl( std::string_view const& pool ) -> void
   {
     if( pool.find( "mine0xbtc.eu"s ) != std::string::npos )
     {
-      std::cerr << "Selected pool '"sv << pool << "' is blocked for deceiving the community and apparent scamming.\n"sv
-        << "Please select a different pool to mine on.\n"sv;
+      std::cerr << "Selected pool '"sv << pool
+                << "' is blocked for deceiving the community and apparent scamming.\n"sv
+                << "Please select a different pool to mine on.\n"sv;
       std::exit( EXIT_FAILURE );
     }
     {
@@ -841,7 +845,7 @@ namespace MinerState
     return m_cpu_threads;
   }
 
-  auto setTokenName( std::string const& token ) -> void
+  auto setTokenName( std::string_view const& token ) -> void
   {
     m_token_name = token;
     std::string temp{ token };
@@ -872,6 +876,11 @@ namespace MinerState
   auto getSubmitStale() -> bool const&
   {
     return m_submit_stale;
+  }
+
+  auto getWorkerName() -> std::string const&
+  {
+    return m_worker_name;
   }
 
   auto getTelemetryPorts() -> std::string const&

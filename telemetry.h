@@ -7,8 +7,8 @@
 
 namespace Telemetry
 {
-  auto init() -> void;
-  auto cleanup() -> void;
+  auto Init() -> void;
+  auto Cleanup() -> void;
 };
 
 #endif // !_TELEMETRY_H_

@@ -20,6 +20,9 @@ typedef std::lock_guard<std::mutex> guard;
 
 namespace
 {
+  typedef std::unique_ptr<CURL, decltype( &curl_easy_cleanup )> CURLhandle;
+  typedef std::unique_ptr<struct curl_slist, decltype( &curl_slist_free_all )> CURLslist;
+
   static uint_fast64_t solutionCount{ 0ull };
   static uint_fast64_t devfeeCount{ 0ull };
   static std::atomic<uint_fast64_t> failureCount{ 0ull };
@@ -69,22 +72,21 @@ namespace
     json response;
     std::string body = j.dump();
 
-    CURL* handle = curl_easy_init();
+    CURLhandle handle{ curl_easy_init(), curl_easy_cleanup };
     char errstr[CURL_ERROR_SIZE]{ 0 };
 
-    // tutorials be damned: _don't_ delete this until after curl_easy_perform is done!
-    struct curl_slist* header = curl_slist_append( NULL, "Content-Type: application/json" );
-    curl_easy_setopt( handle, CURLOPT_HTTPHEADER, header );
+    CURLslist header{ curl_slist_append( NULL, "Content-Type: application/json" ), curl_slist_free_all };
+    curl_easy_setopt( handle.get(), CURLOPT_HTTPHEADER, header.get() );
 
-    curl_easy_setopt( handle, CURLOPT_ERRORBUFFER, errstr );
+    curl_easy_setopt( handle.get(), CURLOPT_ERRORBUFFER, errstr );
 
-    curl_easy_setopt( handle, CURLOPT_URL, MinerState::getPoolUrl().c_str() );
-    curl_easy_setopt( handle, CURLOPT_POSTFIELDS, body.c_str() );
-    curl_easy_setopt( handle, CURLOPT_POSTFIELDSIZE, body.length() );
-    curl_easy_setopt( handle, CURLOPT_WRITEFUNCTION, writebackHandler );
-    curl_easy_setopt( handle, CURLOPT_WRITEDATA, &response );
+    curl_easy_setopt( handle.get(), CURLOPT_URL, MinerState::getPoolUrl().c_str() );
+    curl_easy_setopt( handle.get(), CURLOPT_POSTFIELDS, body.c_str() );
+    curl_easy_setopt( handle.get(), CURLOPT_POSTFIELDSIZE, body.length() );
+    curl_easy_setopt( handle.get(), CURLOPT_WRITEFUNCTION, writebackHandler );
+    curl_easy_setopt( handle.get(), CURLOPT_WRITEDATA, &response );
 
-    CURLcode errcode{ curl_easy_perform( handle ) };
+    CURLcode errcode{ curl_easy_perform( handle.get() ) };
 
     if( errcode != CURLE_OK )
     {
@@ -119,11 +121,7 @@ namespace
       }
     }
 
-    curl_easy_getinfo( handle, CURLINFO_CONNECT_TIME, &m_ping );
-
-    // now we can get rid of it
-    curl_slist_free_all( header );
-    curl_easy_cleanup( handle );
+    curl_easy_getinfo( handle.get(), CURLINFO_CONNECT_TIME, &m_ping );
 
     return response;
   }
@@ -185,11 +183,11 @@ namespace
 
     json submission;
     json solParams{ 0,
-      MinerState::getAddress(),
-      0,
-      0,
-      "0x"s + MinerState::getChallenge(),
-      MinerState::getCustomDiff() };
+                    MinerState::getAddress(),
+                    0,
+                    0,
+                    "0x"s + MinerState::getChallenge(),
+                    MinerState::getCustomDiff() };
     uint_fast16_t idCount{ 0u };
 
     while( sol.length() > 0 )
@@ -306,7 +304,8 @@ namespace Commo
   auto Cleanup() -> void
   {
     m_stop = true;
-    m_thread.join();
+    if( m_thread.joinable() )
+      m_thread.join();
 
     curl_global_cleanup();
   }

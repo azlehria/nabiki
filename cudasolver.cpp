@@ -26,7 +26,8 @@ m_block( 1u )
 
 CUDASolver::~CUDASolver()
 {
-  m_run_thread.join();
+  if( m_run_thread.joinable() )
+    m_run_thread.join();
 }
 
 auto CUDASolver::getHashrate() const -> double const

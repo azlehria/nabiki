@@ -38,6 +38,7 @@ namespace
       ++device_id;
     }
 
+    body["worker_id"] = MinerState::getWorkerName();
     body["version"] = std::string( MINER_VERSION.substr( 8u ) );
     body["kind"] = "nvidia"s;
     body["ua"] = std::string( MINER_VERSION );
@@ -71,7 +72,7 @@ namespace
 
 namespace Telemetry
 {
-  auto init() -> void
+  auto Init() -> void
   {
     std::string ports{ MinerState::getTelemetryPorts() };
     if( ports.length() == 0 || ports == "0" ) return;
@@ -90,7 +91,7 @@ namespace Telemetry
     m_started = true;
   }
 
-  auto cleanup() -> void
+  auto Cleanup() -> void
   {
     if( !m_started ) return;
 

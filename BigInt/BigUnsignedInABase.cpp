@@ -70,7 +70,7 @@ BigUnsignedInABase::operator BigUnsigned() const {
 	return ans;
 }
 
-BigUnsignedInABase::BigUnsignedInABase(const std::string &s, Base base) {
+BigUnsignedInABase::BigUnsignedInABase(const std::string_view &s, Base base) {
 	// Check the base.
 	if (base > 36)
 		throw "BigUnsignedInABase(std::string, Base): The default string conversion routines use the symbol set 0-9, A-Z and therefore support only up to base 36.  You tried a conversion with a base over 36; write your own string conversion routine.";

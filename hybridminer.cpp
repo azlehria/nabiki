@@ -15,7 +15,6 @@
 #include <thread>
 #include <string>
 #include <string_view>
-#include <nvml.h>
 
 using namespace std::literals::string_literals;
 using namespace std::literals::string_view_literals;
@@ -35,7 +34,7 @@ namespace
   {
     if( !UseOldUI() )
     {
-      uint_fast16_t logTop{ 5u + (MinerState::isDebug() ? m_solvers_cuda : 0u) };
+      uint_fast16_t const logTop{ 5u + (MinerState::isDebug() ? m_solvers_cuda : 0u) };
 
       std::cout << "\x1b[?25l\x1b[2J\x1b(0"sv
                 << "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqk"sv
@@ -54,13 +53,16 @@ namespace
                 << "\x1b]2;"sv << MINER_VERSION << "\x07"sv
                 << "\x1b[" << logTop << "r\x1b[" << logTop << ";1f"sv;
     }
+  }
 
+  static auto printStartMessage() -> void
+  {
     std::stringstream ss_out;
     ss_out << MinerState::getPrintableTimeStamp() << "Mining on "sv;
     if( m_solvers_cuda > 0u )
     {
       ss_out << m_solvers_cuda
-        << " GPU"sv << (m_solvers_cuda > 1 ? "s"sv : ""sv) << " using CUDA"sv;
+             << " GPU"sv << (m_solvers_cuda > 1 ? "s"sv : ""sv) << " using CUDA"sv;
     }
     if( m_solvers_cuda > 0u && m_solvers_cl > 0u )
     {
@@ -69,7 +71,7 @@ namespace
     if( m_solvers_cl > 0u )
     {
       ss_out << m_solvers_cl
-        << " device"sv << ( m_solvers_cl > 1 ? "s"sv : ""sv ) << " using OpenCL"sv;
+             << " device"sv << ( m_solvers_cl > 1 ? "s"sv : ""sv ) << " using OpenCL"sv;
     }
     if( m_solvers_cl > 0u && m_solvers_cpu > 0u )
     {
@@ -92,11 +94,9 @@ namespace
       std::this_thread::sleep_for( 1ms );
     }
 
-    for( auto& device : MinerState::getCudaDevices() )
+    for( auto const&[ device, intensity ] : MinerState::getCudaDevices() )
     {
-      nvmlInit();
-      m_solvers.push_back( std::make_unique<CUDASolver>( device.first,
-                                                         device.second ) );
+      m_solvers.push_back( std::make_unique<CUDASolver>( device, intensity ) );
       ++m_solvers_cuda;
     }
 
@@ -107,7 +107,7 @@ namespace
 
     //std::vector<cl::Platform> platforms;
     //cl_int error = cl::Platform::get( &platforms );
-    //for( auto& cfg_plats : MinerState::getClDevices() )
+    //for( auto const&[ pName, pDevices ] : MinerState::getClDevices() )
     //{
     //  std::vector<cl::Device> devices;
     //  error = platforms[1].getDevices( CL_DEVICE_TYPE_ALL, &devices );
@@ -143,15 +143,16 @@ namespace HybridMiner
 
     SetBasicState();
 
-    MinerState::initState();
+    MinerState::Init();
 
     Commo::Init();
 
     startMining();
 
     printUiBase();
+    printStartMessage();
 
-    Telemetry::init();
+    Telemetry::Init();
 
     while( !m_stop )
     {
@@ -179,7 +180,7 @@ namespace HybridMiner
 
     m_solvers_cuda = m_solvers_cpu = 0u;
 
-    Telemetry::cleanup();
+    Telemetry::Cleanup();
 
     Commo::Cleanup();
   }

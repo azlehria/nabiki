@@ -4,6 +4,7 @@
 #include "NumberlikeArray.hh"
 #include "BigUnsigned.hh"
 #include <string>
+#include <string_view>
 
 /*
  * A BigUnsignedInABase object represents a nonnegative integer of size limited
@@ -93,7 +94,7 @@ public:
 	 * between BigUnsignedInABase and strings.  It's not hard.
 	 */
 	operator std::string() const;
-	BigUnsignedInABase(const std::string &s, Base base);
+	BigUnsignedInABase(const std::string_view &s, Base base);
 
 public:
 

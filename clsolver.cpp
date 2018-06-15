@@ -31,7 +31,8 @@ m_start( steady_clock::now() )
 
 CLSolver::~CLSolver()
 {
-  m_run_thread.join();
+  if( m_run_thread.joinable() )
+    m_run_thread.join();
 }
 
 auto CLSolver::getHashrate() const -> double const
@@ -125,7 +126,7 @@ auto CLSolver::clResetSolution() -> void
   if( error != CL_SUCCESS )
   {
     MinerState::pushLog( "OpenCL error #"s + std::to_string( error ) + " in clResetSolution"s );
-    exit( EXIT_FAILURE );
+    std::exit( EXIT_FAILURE );
   }
 }
 
@@ -136,7 +137,7 @@ auto CLSolver::pushMessage() -> void
   if( error != CL_SUCCESS )
   {
     MinerState::pushLog( "OpenCL error #"s + std::to_string( error ) + " in pushMessage"s );
-    exit( EXIT_FAILURE );
+    std::exit( EXIT_FAILURE );
   }
   m_new_message = false;
 }
@@ -148,7 +149,7 @@ auto CLSolver::pushTarget() -> void
   if( error != CL_SUCCESS )
   {
     MinerState::pushLog( "OpenCL error #"s + std::to_string( error ) + " in pushTarget"s );
-    exit( EXIT_FAILURE );
+    std::exit( EXIT_FAILURE );
   }
   m_new_target = false;
 }
