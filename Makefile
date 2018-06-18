@@ -8,7 +8,7 @@ CXX			= g++ $(CPPFLAGS) $(CXXFLAGS) -c
 
 CPATH		:= /usr/local/include:.:$(CPATH)
 CPPFLAGS	+= -DNDEBUG -DJSON_STRIP_COMMENTS -DSPH_KECCAK_64=1 -DSPH_KECCAK_UNROLL=4 -DSPH_KECCAK_NOCOPY -DCURL_NO_OLDIES -DNO_SSL -DNO_CACHING -DMAX_WORKER_THREADS=2
-CFLAGS		+= -O3 -m64 -Wall -Wextra -Wno-unused-parameter -pthread -fPIC -fno-omit-frame-pointer -static-libstdc++ -static-libgcc
+CFLAGS		+= -O3 -m64 -Wall -Wextra -Wno-unused-parameter -pthread -fPIC -fno-omit-frame-pointer -flto -static-libstdc++ -static-libgcc
 CXXFLAGS	+= $(CFLAGS) -std=c++17 -fno-rtti
 
 LD			= g++ $(LDFLAGS)
