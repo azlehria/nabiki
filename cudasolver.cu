@@ -476,11 +476,11 @@ auto CUDASolver::findSolution() -> void
     }
   }
 
-  //for( auto& arg : args )
-  //{
-  //  free( arg );
-  //}
-  //free( func );
+  for( auto& arg : args )
+  {
+    free( arg );
+  }
+  free( func );
 
   cudaCleanup();
 }

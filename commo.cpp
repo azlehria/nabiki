@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <stdexcept>
 #include <curl/curl.h>
 
 using namespace std::literals::string_literals;
@@ -114,7 +115,7 @@ namespace
         case CURLE_GOT_NOTHING:
         case CURLE_SEND_ERROR:
         case CURLE_RECV_ERROR:
-          response = errcode;
+          throw std::runtime_error{ curl_easy_strerror( errcode ) };
           break;
         default:
           ; // do nothing
@@ -142,34 +143,45 @@ namespace
       request.emplace_back( m_get_address );
     }
 
-    json response( doMethod( request ) );
-
-    for( auto& ret : response )
+    try
     {
-      if( ret["id"].is_string() &&
-          ret["id"].get<std::string>() == "addr"s &&
-          ret["result"].is_string() &&
-          ret["result"].get<std::string>() != MinerState::getPoolAddress() )
+      json response( doMethod( request ) );
+
+      for( auto& ret : response )
       {
-        MinerState::setPoolAddress( ret["result"].get<std::string>() );
-        HybridMiner::updateMessage();
+        // these tests need to be false for all valid responses, so . . .
+        if( ret.find( "id" ) == ret.end() || !ret["id"].is_string() ||
+            ret.find( "result" ) == ret.end() )
+        {
+          continue;
+        }
+        if( ret["id"].get<std::string>() == "addr"s &&
+            ret["result"].is_string() &&
+            ret["result"].get<std::string>() != MinerState::getPoolAddress() )
+        {
+          MinerState::setPoolAddress( ret["result"].get<std::string>() );
+          HybridMiner::updateMessage();
+        }
+        if( ret["id"].get<std::string>() == "diff"s &&
+            ret["result"].is_number_unsigned() &&
+            ret["result"].get<uint64_t>() > 0 )
+        {
+          MinerState::setDiff( ret["result"].get<uint64_t>() );
+          HybridMiner::updateTarget();
+        }
+        if( ret["id"].get<std::string>() == "chal"s &&
+            ret["result"].is_string() &&
+            ret["result"].get<std::string>() != MinerState::getChallenge() )
+        {
+          MinerState::setChallenge( ret["result"].get<std::string>() );
+          HybridMiner::updateMessage();
+        }
       }
-      if( ret["id"].is_string() &&
-          ret["id"].get<std::string>() == "diff"s &&
-          ret["result"].is_number()
-          && ret["result"].get<uint64_t>() > 0 )
-      {
-        MinerState::setDiff( ret["result"].get<uint64_t>() );
-        HybridMiner::updateTarget();
-      }
-      if( ret["id"].is_string() &&
-          ret["id"].get<std::string>() == "chal"s &&
-          ret["result"].is_string() &&
-          ret["result"].get<std::string>() != MinerState::getChallenge() )
-      {
-        MinerState::setChallenge( ret["result"].get<std::string>() );
-        HybridMiner::updateMessage();
-      }
+    }
+    catch( std::runtime_error rterr )
+    {
+      // skip response handler
+      return;
     }
   }
 
