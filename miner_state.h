@@ -21,6 +21,7 @@ namespace MinerState
   auto getIncSearchSpace( uint64_t const& threads ) -> uint64_t const;
   auto resetCounter() -> void;
   auto getPrintableHashCount() -> uint64_t const;
+  auto getRoundStartTime() -> std::chrono::time_point<std::chrono::steady_clock> const;
   auto printStatus() -> void;
   auto getPrintableTimeStamp() -> std::string const;
 
@@ -31,6 +32,7 @@ namespace MinerState
   auto getSolution() -> std::string const;
   auto incSolCount( uint64_t const& count = 1 ) -> void;
   auto getSolCount() -> uint64_t const;
+  auto getSolNew() -> bool const;
 
   auto setTarget( BigUnsigned const& target ) -> void;
   auto getTarget() -> BigUnsigned const;
@@ -40,6 +42,7 @@ namespace MinerState
   auto getPrefix() -> std::string const;
   auto getOldPrefix() -> std::string const;
   auto setChallenge( std::string_view const& challenge ) -> void;
+  auto getPrintableChallenge() -> std::string const;
   auto getChallenge() -> std::string const;
   auto getPreviousChallenge() -> std::string const;
   auto setPoolAddress( std::string_view const& address ) -> void;
@@ -49,6 +52,7 @@ namespace MinerState
   auto getMidstate() -> state_t const;
 
   auto setAddress( std::string_view const& address ) -> void;
+  auto getPrintableAddress() -> std::string const;
   auto getAddress() -> std::string const;
 
   auto setCustomDiff( uint64_t const& diff ) -> void;

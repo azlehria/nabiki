@@ -37,6 +37,9 @@
     <ClCompile Include="keccak.c">
       <Filter>Libs</Filter>
     </ClCompile>
+    <ClCompile Include="text.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hybridminer.h">
@@ -96,6 +99,9 @@
     <ClInclude Include="isolver.h">
       <Filter>Mining Backend</Filter>
     </ClInclude>
+    <ClInclude Include="text.h">
+      <Filter>UI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Libs">
@@ -133,6 +139,9 @@
     </Filter>
     <Filter Include="Mining Backend\OpenCL">
       <UniqueIdentifier>{f067f171-c5b5-4866-8314-518b45779a2a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UI">
+      <UniqueIdentifier>{47fdbcd8-9181-4e91-b2e4-cdceaa9f488e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -61,7 +61,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>OpenCL.lib;libcurl_a_debug.lib;nvml.lib;cudart_static.lib;crypt32.lib;wldap32.lib;Normaliz.lib</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;libcurl_a_debug.lib;nvml.lib;cudart_static.lib;crypt32.lib;wldap32.lib;Normaliz.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);..\deps\lib</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
@@ -147,6 +147,7 @@
     <ClCompile Include="miner_state.cpp" />
     <None Include="posix.cpp" />
     <ClCompile Include="telemetry.cpp" />
+    <ClCompile Include="text.cpp" />
     <ClCompile Include="win32.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -168,6 +169,7 @@
     <ClInclude Include="sph_keccak.h" />
     <ClInclude Include="sph_types.h" />
     <ClInclude Include="telemetry.h" />
+    <ClInclude Include="text.h" />
     <ClInclude Include="types.h" />
   </ItemGroup>
   <ItemGroup>

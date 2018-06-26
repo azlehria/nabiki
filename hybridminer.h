@@ -27,6 +27,8 @@ namespace HybridMiner
   auto getTemperatures() -> std::vector<uint32_t> const;
   auto getDeviceStates() -> std::vector<device_info_t> const;
 
+  auto getActiveDeviceCount() -> uint_fast16_t const;
+
   auto getUptime() -> uint64_t const;
 }
 

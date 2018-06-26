@@ -131,77 +131,6 @@ namespace
       bytes[j] = ascii_r( hex[i], hex[i + 1] );
     }
   }
-
-  static auto printUiOldWindows( duration<uint32_t> const& timer, double const& hashrate, std::ostream& ss_out ) -> std::ostream&
-  {
-    // print every every 5 seconds . . . more or less
-    static auto time_counter{ steady_clock::now() + 5s };
-    if( time_counter > steady_clock::now() ) return ss_out;
-    time_counter = steady_clock::now() + 5s;
-
-    ss_out << MinerState::getPrintableTimeStamp() << std::setfill( ' ' )
-           << std::setw( 10 ) << std::fixed << std::setprecision( 2 )
-           << hashrate / 1000000
-           << " MH/s  Sols:"sv
-           << std::setw( 6 ) << m_sol_count
-           << ( m_new_solution ? '^' : ' ' )
-           << " Search time: "sv
-           << std::setfill( '0' )
-           << std::setw( 2 ) << duration_cast<minutes>( timer ).count() << ":"sv
-           << std::setw( 2 ) << timer.count()
-           << '\n';
-
-    m_new_solution = false;
-
-    return ss_out;
-  }
-
-  static auto printUi( duration<uint32_t> const& timer, double const& hashrate, std::ostream& ss_out ) -> std::ostream&
-  {
-    // print every every 100 milliseconds . . . more or less
-    static auto time_counter{ steady_clock::now() + 100ms };
-    if( time_counter > steady_clock::now() ) return ss_out;
-    time_counter = steady_clock::now() + 100ms;
-
-    // maybe breaking the control codes into macros is a good idea . . .
-    ss_out << "\x1b[s\x1b[2;75f\x1b[38;5;33m"sv
-           << std::setfill( '0' )
-           << std::setw( 2 ) << duration_cast<minutes>( timer ).count() << ":"sv
-           << std::setw( 2 ) << timer.count() % 60
-           << "\x1b[2;22f\x1b[38;5;221m"sv
-           << std::setw( 8 ) << std::setfill( ' ' ) << std::fixed << std::setprecision( 2 )
-           << hashrate / 1000000
-           << "\x1b[3;22f\x1b[38;5;221m"sv
-           << std::setw( 8 ) << m_sol_count
-           << "\x1b[3;14f\x1b[38;5;34m"sv
-           << m_diff
-           << "\x1b[3;72f\x1b[38;5;33m"sv;
-    {
-      guard lock( m_print_mutex );
-      ss_out << m_address_printable
-             << "\x1b[2;13f\x1b[38;5;34m"sv
-             << m_challenge_printable;
-    }
-    if( m_debug )
-    {
-      uint_fast32_t line{ 5u };
-      for( auto& device : HybridMiner::getDeviceStates() )
-      {
-        ss_out << "\x1b[0m\x1b["sv << line << ";0f"sv << device.name.substr( 12 )
-               << "\x1b["sv << line << ";9f"sv << device.temperature << " C"sv
-               << std::setw( 10 ) << std::setprecision( 2 ) << device.hashrate / 1000000
-               << " MH/s\t"sv << device.core << " MHz\t"sv << device.memory << " MHz\t"sv
-               << std::setw( 3 ) << device.fan << "%\t"sv << device.power << "W\n"sv;
-        ++line;
-      }
-    }
-    ss_out.imbue( std::locale( "" ) );
-    ss_out << "\x1b[3;36f\x1b[38;5;208m"sv
-           << std::setw( 25 ) << m_hash_count_printable
-           << "\x1b[0m\x1b[u"sv;
-
-    return ss_out;
-  }
 }
 
 // --------------------------------------------------------------------
@@ -438,28 +367,9 @@ namespace MinerState
     m_round_start = steady_clock::now();
   }
 
-  auto printStatus() -> void
+  auto getRoundStartTime() -> std::chrono::time_point<std::chrono::steady_clock> const
   {
-    if( m_hash_count == 0 ) return;
-
-    duration<uint32_t> timer{ duration_cast<seconds>( steady_clock::now() - m_round_start ).count() };
-
-    double hashrate{ 0 };
-    for( auto& temp : HybridMiner::getHashrates() )
-    {
-      hashrate += temp;
-    }
-
-    static auto print = std::bind( ( UseOldUI() ? ::printUiOldWindows : ::printUi ),
-                                   std::cref( timer ),
-                                   std::cref( hashrate ),
-                                   std::placeholders::_1 );
-
-    print( getLog( std::cout ) );
-    //std::stringstream bar;
-    //print( getLog( bar ) );
-    //print( bar );
-    //getLog( bar );
+    return m_round_start;
   }
 
   auto getLog( std::ostream& outstream ) -> std::ostream&
@@ -558,6 +468,11 @@ namespace MinerState
     return m_sol_count.load( std::memory_order_acquire );
   }
 
+  auto getSolNew() -> bool const
+  {
+    return m_new_solution.exchange( false, std::memory_order_acq_rel );
+  }
+
   auto getPrefix() -> std::string const
   {
     prefix_t temp;
@@ -610,6 +525,12 @@ namespace MinerState
 
     m_challenge_ready.store( true, std::memory_order_release );
     setMidstate();
+  }
+
+  auto getPrintableChallenge() -> std::string const
+  {
+    guard lock( m_print_mutex );
+    return m_challenge_printable;
   }
 
   auto getChallenge() -> std::string const
@@ -770,6 +691,11 @@ namespace MinerState
       guard lock( m_print_mutex );
       m_address_printable = address.substr( 0, 8 );
     }
+  }
+
+  auto getPrintableAddress() -> std::string const
+  {
+    return m_address_printable;
   }
 
   auto getAddress() -> std::string const

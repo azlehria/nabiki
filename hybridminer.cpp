@@ -7,6 +7,7 @@
 #include "cudasolver.h"
 #include "clsolver.h"
 #include "telemetry.h"
+#include "text.h"
 
 #include <cstdlib>
 #include <sstream>
@@ -30,35 +31,10 @@ namespace
   static steady_clock::time_point m_launch_time;
   static std::atomic<bool> m_stop{ false };
 
-  static auto printUiBase() -> void
-  {
-    if( !UseOldUI() )
-    {
-      uint_fast16_t const logTop{ 5u + (MinerState::isDebug() ? m_solvers_cuda : 0u) };
-
-      std::cout << "\x1b[?25l\x1b[2J\x1b(0"sv
-                << "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqk"sv
-                << "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqj"sv
-                << "\x1b[2;1fx\x1b[2;35fx\x1b[2;62fx\x1b[2;80fx"sv
-                << "\x1b[3;1fx\x1b[3;35fx\x1b[3;62fx\x1b[3;80fx"sv
-                << "\x1b(B\x1b[2;2fChallenge:"sv
-                << "\x1b[3;2fDifficulty:"sv
-                << "\x1b[2;37fHashes this round"sv
-                << "\x1b[2;63fRound time:"sv
-                << "\x1b[3;63fAccount:"sv
-                << "\x1b[2;31fMH/s"sv
-                << "\x1b[3;31fSols"sv
-                << "\x1b[s\x1b[3;29f\x1b[38;5;221m0\x1b[0m\x1b[u"sv
-                << "\x1b[1;64f"sv << MINER_VERSION.substr( 7 )
-                << "\x1b]2;"sv << MINER_VERSION << "\x07"sv
-                << "\x1b[" << logTop << "r\x1b[" << logTop << ";1f"sv;
-    }
-  }
-
   static auto printStartMessage() -> void
   {
     std::stringstream ss_out;
-    ss_out << MinerState::getPrintableTimeStamp() << "Mining on "sv;
+    ss_out <<  "Mining on "sv;
     if( m_solvers_cuda > 0u )
     {
       ss_out << m_solvers_cuda
@@ -84,7 +60,7 @@ namespace
 
     ss_out << ".\n"sv;
 
-    std::cout << ss_out.str();
+    MinerState::pushLog( ss_out.str() );
   }
 
   static auto startMining() -> void
@@ -149,19 +125,17 @@ namespace HybridMiner
 
     startMining();
 
-    printUiBase();
     printStartMessage();
 
     Telemetry::Init();
 
-    while( !m_stop.load( std::memory_order_acquire ) )
-    {
-      auto timerNext = steady_clock::now() + 1ms;
+    UI::Text::Init();
 
-      MinerState::printStatus();
+    do {
+      std::this_thread::sleep_for( 1ms );
+    } while( !m_stop.load( std::memory_order_acquire ) );
 
-      std::this_thread::sleep_until( timerNext );
-    }
+    UI::Text::Cleanup();
 
     std::cerr << MinerState::getPrintableTimeStamp() << "Process exiting... stopping miner\n"sv;
 
@@ -222,6 +196,11 @@ namespace HybridMiner
       }
     }
     return ret;
+  }
+
+  auto getActiveDeviceCount() -> uint_fast16_t const
+  {
+    return m_solvers_cuda + m_solvers_cl + m_solvers_cpu;
   }
 
   auto getUptime() -> uint64_t const
