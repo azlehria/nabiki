@@ -422,26 +422,13 @@ auto CUDASolver::findSolution() -> void
 {
   cudaInit();
 
-  void* func = &cuda_mine;
-  uint64_t search_space[1];
-  std::vector<void*> args{ &d_solutions, &d_solution_count, &search_space };
-
-  void* t_mid;
-  void* t_target;
-  cudaSafeCall( cudaGetSymbolAddress( &t_target, d_target ) );
-  cudaSafeCall( cudaGetSymbolAddress( &t_mid, d_mid ) );
-
   while( !m_stop )
   {
     if( m_new_target ) { pushTarget(); }
     if( m_new_message ) { pushMessage(); }
 
-    search_space[0] = getNextSearchSpace();
-
-    cudaError_t syncErr = cudaLaunchKernel( func, m_grid, m_block, args.data() );
-
-    //cuda_mine <<< m_grid, m_block >>> ( d_solutions, d_solution_count, getNextSearchSpace() );
-    //cudaError_t syncErr = cudaGetLastError();
+    cuda_mine <<< m_grid, m_block >>> ( d_solutions, d_solution_count, getNextSearchSpace() );
+    cudaError_t syncErr = cudaGetLastError();
     cudaError_t asyncErr = cudaDeviceSynchronize();
     if( syncErr | asyncErr != cudaSuccess )
     {
@@ -475,12 +462,6 @@ auto CUDASolver::findSolution() -> void
       cudaResetSolution();
     }
   }
-
-  for( auto& arg : args )
-  {
-    free( arg );
-  }
-  free( func );
 
   cudaCleanup();
 }

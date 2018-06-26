@@ -1519,7 +1519,7 @@ static const struct {
 #endif
 
 static void
-keccak_init(sph_keccak_context *kc, unsigned out_size)
+keccak_init(sph_keccak_context * __restrict kc, unsigned out_size)
 {
 	int i;
 
@@ -1562,7 +1562,7 @@ keccak_init(sph_keccak_context *kc, unsigned out_size)
 }
 
 static void
-keccak_core(sph_keccak_context *kc, const void *data, size_t len, size_t lim)
+keccak_core(sph_keccak_context * __restrict kc, const void * __restrict data, size_t len, size_t lim)
 {
 	unsigned char *buf;
 	size_t ptr;
@@ -1602,7 +1602,7 @@ keccak_core(sph_keccak_context *kc, const void *data, size_t len, size_t lim)
 
 #define DEFCLOSE(d, lim) \
 	static void keccak_close ## d( \
-		sph_keccak_context *kc, unsigned ub, unsigned n, void *dst) \
+		sph_keccak_context * __restrict kc, unsigned ub, unsigned n, void * __restrict dst) \
 	{ \
 		unsigned eb; \
 		union { \
@@ -1646,7 +1646,7 @@ keccak_core(sph_keccak_context *kc, const void *data, size_t len, size_t lim)
 
 #define DEFCLOSE(d, lim) \
 	static void keccak_close ## d( \
-		sph_keccak_context *kc, unsigned ub, unsigned n, void *dst) \
+		sph_keccak_context * __restrict kc, unsigned ub, unsigned n, void * __restrict dst) \
 	{ \
 		unsigned eb; \
 		union { \
@@ -1704,112 +1704,112 @@ DEFCLOSE(64, 72)
 
 /* see sph_keccak.h */
 void
-sph_keccak224_init(void *cc)
+sph_keccak224_init(void * __restrict cc)
 {
 	keccak_init(cc, 224);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak224(void *cc, const void *data, size_t len)
+sph_keccak224(void * __restrict cc, const void * __restrict data, size_t len)
 {
 	keccak_core(cc, data, len, 144);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak224_close(void *cc, void *dst)
+sph_keccak224_close(void * __restrict cc, void * __restrict dst)
 {
 	sph_keccak224_addbits_and_close(cc, 0, 0, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak224_addbits_and_close(void *cc, unsigned ub, unsigned n, void *dst)
+sph_keccak224_addbits_and_close(void * __restrict cc, unsigned ub, unsigned n, void * __restrict dst)
 {
 	keccak_close28(cc, ub, n, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak256_init(void *cc)
+sph_keccak256_init(void * __restrict cc)
 {
 	keccak_init(cc, 256);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak256(void *cc, const void *data, size_t len)
+sph_keccak256(void * __restrict cc, const void * __restrict data, size_t len)
 {
 	keccak_core(cc, data, len, 136);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak256_close(void *cc, void *dst)
+sph_keccak256_close(void * __restrict cc, void * __restrict dst)
 {
 	sph_keccak256_addbits_and_close(cc, 0, 0, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak256_addbits_and_close(void *cc, unsigned ub, unsigned n, void *dst)
+sph_keccak256_addbits_and_close(void * __restrict cc, unsigned ub, unsigned n, void * __restrict dst)
 {
 	keccak_close32(cc, ub, n, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak384_init(void *cc)
+sph_keccak384_init(void * __restrict cc)
 {
 	keccak_init(cc, 384);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak384(void *cc, const void *data, size_t len)
+sph_keccak384(void * __restrict cc, const void * __restrict data, size_t len)
 {
 	keccak_core(cc, data, len, 104);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak384_close(void *cc, void *dst)
+sph_keccak384_close(void * __restrict cc, void * __restrict dst)
 {
 	sph_keccak384_addbits_and_close(cc, 0, 0, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak384_addbits_and_close(void *cc, unsigned ub, unsigned n, void *dst)
+sph_keccak384_addbits_and_close(void * __restrict cc, unsigned ub, unsigned n, void * __restrict dst)
 {
 	keccak_close48(cc, ub, n, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak512_init(void *cc)
+sph_keccak512_init(void * __restrict cc)
 {
 	keccak_init(cc, 512);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak512(void *cc, const void *data, size_t len)
+sph_keccak512(void * __restrict cc, const void * __restrict data, size_t len)
 {
 	keccak_core(cc, data, len, 72);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak512_close(void *cc, void *dst)
+sph_keccak512_close(void * __restrict cc, void * __restrict dst)
 {
 	sph_keccak512_addbits_and_close(cc, 0, 0, dst);
 }
 
 /* see sph_keccak.h */
 void
-sph_keccak512_addbits_and_close(void *cc, unsigned ub, unsigned n, void *dst)
+sph_keccak512_addbits_and_close(void * __restrict cc, unsigned ub, unsigned n, void * __restrict dst)
 {
 	keccak_close64(cc, ub, n, dst);
 }

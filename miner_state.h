@@ -32,7 +32,7 @@ namespace MinerState
   auto incSolCount( uint64_t const& count = 1 ) -> void;
   auto getSolCount() -> uint64_t const;
 
-  auto setTarget( std::string_view const& target ) -> void;
+  auto setTarget( BigUnsigned const& target ) -> void;
   auto getTarget() -> BigUnsigned const;
   auto getTargetNum() -> uint64_t const;
   auto getMaximumTarget() -> BigUnsigned const;

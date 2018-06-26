@@ -46,7 +46,7 @@ CPUSolver::~CPUSolver()
 
 auto CPUSolver::stopFinding() -> void
 {
-  m_stop = true;
+  m_stop.store( true, std::memory_order_release );
 }
 
 auto CPUSolver::findSolution() -> void
@@ -55,17 +55,17 @@ auto CPUSolver::findSolution() -> void
   message_t in_buffer;
   hash_t out_buffer;
 
-  while( !m_stop )
+  while( !m_stop.load( std::memory_order_acquire ) )
   {
-    if( m_new_target )
+    if( m_new_target.load( std::memory_order_acquire ) )
     {
-      m_target = MinerState::getTargetNum();
-      m_new_target = false;
+      m_target.store( MinerState::getTargetNum(), std::memory_order_release );
+      m_new_target.store( false, std::memory_order_release );
     }
-    if( m_new_message )
+    if( m_new_message.load( std::memory_order_acquire ) )
     {
       m_message = MinerState::getMessage();
-      m_new_message = false;
+      m_new_message.store( false, std::memory_order_release );
     }
 
     solution = getNextSearchSpace();
@@ -84,7 +84,7 @@ auto CPUSolver::findSolution() -> void
 
 auto CPUSolver::getHashrate() const -> double const
 {
-  return m_hash_average;
+  return m_hash_average.load( std::memory_order_acquire );
 }
 
 // XP CPU temp - how?
@@ -100,29 +100,28 @@ auto CPUSolver::getDeviceState() const -> device_info_t const
 
 auto CPUSolver::updateTarget() -> void
 {
-  m_new_target = true;
+  m_new_target.store( true, std::memory_order_release );
 }
 auto CPUSolver::updateMessage() -> void
 {
-  m_new_message = true;
+  m_new_message.store( true, std::memory_order_release );
 }
 
 auto CPUSolver::getNextSearchSpace() -> uint64_t const
 {
-  ++m_hash_count;
+  m_hash_count.fetch_add( 1, std::memory_order_acq_rel );
   double t{ static_cast<double>(duration_cast<milliseconds>(steady_clock::now() - m_start).count()) / 1000 };
 
-  if( m_hash_count_samples < 100 )
+  if( m_hash_count_samples.load( std::memory_order_acquire ) < 100 )
   {
-    ++m_hash_count_samples;
+    m_hash_count_samples.fetch_add( 1, std::memory_order_release );
   }
 
-  double temp_average{ m_hash_average };
-  temp_average += ((m_hash_count / t) / 1000000 - temp_average) / m_hash_count_samples;
-  if( std::isnan( temp_average ) || std::isinf( temp_average ) )
+  double temp_average{ m_hash_average.load( std::memory_order_acquire ) };
+  temp_average += ((m_hash_count.load( std::memory_order_acquire ) / t) / 1000000 - temp_average) / m_hash_count_samples.load( std::memory_order_acquire );
+  if( !std::isnan( temp_average ) && !std::isinf( temp_average ) )
   {
-    temp_average = m_hash_average;
+    m_hash_average.store( temp_average, std::memory_order_release );
   }
-  m_hash_average = temp_average;
   return MinerState::getIncSearchSpace( 1 );
 }

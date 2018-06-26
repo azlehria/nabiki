@@ -9,15 +9,12 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
-#include <mutex>
 #include <stdexcept>
 #include <curl/curl.h>
 
 using namespace std::literals::string_literals;
 using namespace std::chrono;
 using namespace nlohmann;
-
-typedef std::lock_guard<std::mutex> guard;
 
 namespace
 {
@@ -30,9 +27,15 @@ namespace
   static std::vector<std::string> connectionErrors;
   static std::mutex connectionMutex;
   static std::atomic<uint_fast64_t> totalCount{ 0ull };
-  static std::atomic<double> m_ping{ 0 };
+  static std::atomic<int64_t> m_ping{ 0 };
   static std::atomic<bool> m_stop{ false };
   static sph_keccak256_context ctx;
+
+  //static CURL* m_handle;
+  //static curl_slist* m_headers;
+  static CURLhandle m_handle{ nullptr, &curl_easy_cleanup };
+  static CURLslist m_headers{ nullptr, &curl_slist_free_all };
+  static std::array<char, CURL_ERROR_SIZE> m_errstr{ 0 };
 
   static std::thread m_thread;
 
@@ -54,7 +57,7 @@ namespace
 
   static auto logConnectionError( std::string const& error ) -> void
   {
-    ++failureCount;
+    failureCount.fetch_add( 1, std::memory_order_release );
     MinerState::pushLog( error );
     {
       guard lock( connectionMutex );
@@ -64,34 +67,32 @@ namespace
 
   static auto writebackHandler( char* __restrict body, size_t size, size_t nmemb, void* __restrict out ) -> size_t const
   {
-    *static_cast<json*>( out ) = json::parse( std::string( body, size * nmemb ) );
+    try
+    {
+      static_cast<std::string*>( out )->append( body, size * nmemb );
+    }
+    catch( ... )
+    {
+      //MinerState::pushLog( ":"s + std::string( body, size * nmemb ) + ":"s + std::to_string( size ) + ":"s + std::to_string( nmemb ) );
+      return 0;
+    }
     return size * nmemb;
   }
 
   static auto doMethod( json j ) -> json const
   {
-    json response;
+    std::string response{};
     std::string body = j.dump();
 
-    CURLhandle handle{ curl_easy_init(), curl_easy_cleanup };
-    char errstr[CURL_ERROR_SIZE]{ 0 };
+    curl_easy_setopt( m_handle.get(), CURLOPT_POSTFIELDS, body.c_str() );
+    curl_easy_setopt( m_handle.get(), CURLOPT_POSTFIELDSIZE, body.length() );
+    curl_easy_setopt( m_handle.get(), CURLOPT_WRITEDATA, &response );
 
-    CURLslist header{ curl_slist_append( NULL, "Content-Type: application/json" ), curl_slist_free_all };
-    curl_easy_setopt( handle.get(), CURLOPT_HTTPHEADER, header.get() );
-
-    curl_easy_setopt( handle.get(), CURLOPT_ERRORBUFFER, errstr );
-
-    curl_easy_setopt( handle.get(), CURLOPT_URL, MinerState::getPoolUrl().c_str() );
-    curl_easy_setopt( handle.get(), CURLOPT_POSTFIELDS, body.c_str() );
-    curl_easy_setopt( handle.get(), CURLOPT_POSTFIELDSIZE, body.length() );
-    curl_easy_setopt( handle.get(), CURLOPT_WRITEFUNCTION, writebackHandler );
-    curl_easy_setopt( handle.get(), CURLOPT_WRITEDATA, &response );
-
-    CURLcode errcode{ curl_easy_perform( handle.get() ) };
+    CURLcode errcode{ curl_easy_perform( m_handle.get() ) };
 
     if( errcode != CURLE_OK )
     {
-      logConnectionError( strlen( errstr ) ? errstr : curl_easy_strerror( errcode ) );
+      logConnectionError( m_errstr.size() ? m_errstr.data() : curl_easy_strerror( errcode ) );
 
       switch( errcode )
       {
@@ -122,9 +123,9 @@ namespace
       }
     }
 
-    curl_easy_getinfo( handle.get(), CURLINFO_CONNECT_TIME, &m_ping );
+    curl_easy_getinfo( m_handle.get(), CURLINFO_PRETRANSFER_TIME_T, &m_ping );
 
-    return response;
+    return json::parse( response.cbegin(), response.cend(), false );
   }
 
   static auto updateState( bool const& full ) -> void
@@ -180,7 +181,6 @@ namespace
     }
     catch( std::runtime_error rterr )
     {
-      // skip response handler
       return;
     }
   }
@@ -250,15 +250,24 @@ namespace
       sol = MinerState::getSolution();
     }
 
-    totalCount.fetch_add( idCount + 1 );
+    totalCount.fetch_add( idCount, std::memory_order_release );
 
     json response{ doMethod( submission ) };
 
-    while( response.is_number_integer() )
+    while( true )
     {
-      MinerState::pushLog( "Retrying in 2 seconds . . ."s );
-      std::this_thread::sleep_for( 2s );
-      response = doMethod( submission );
+      if( m_stop.load( std::memory_order_acquire ) ) return;
+
+      try
+      {
+        response = doMethod( submission );
+        break;
+      }
+      catch( std::runtime_error rterr )
+      {
+        MinerState::pushLog( "Retrying in 2 seconds . . ."s );
+        std::this_thread::sleep_for( 2s );
+      }
     }
 
     for( auto& ret : response )
@@ -284,7 +293,7 @@ namespace
     updateState( true );
 
     auto check_time{ steady_clock::now() + 4s };
-    while( !m_stop )
+    while( !m_stop.load( std::memory_order_acquire ) )
     {
       if( steady_clock::now() >= check_time )
       {
@@ -304,6 +313,15 @@ namespace Commo
   auto Init() -> void
   {
     curl_global_init( CURL_GLOBAL_ALL );
+    m_handle.reset( curl_easy_init() );
+
+    m_headers.reset( curl_slist_append( NULL, "Content-Type: application/json" ) );
+    curl_easy_setopt( m_handle.get(), CURLOPT_HTTPHEADER, m_headers.get() );
+
+    curl_easy_setopt( m_handle.get(), CURLOPT_ERRORBUFFER, m_errstr.data() );
+
+    curl_easy_setopt( m_handle.get(), CURLOPT_URL, MinerState::getPoolUrl().c_str() );
+    curl_easy_setopt( m_handle.get(), CURLOPT_WRITEFUNCTION, writebackHandler );
 
     m_get_diff["params"][0] = MinerState::getAddress();
     m_get_target["params"][0] = MinerState::getAddress();
@@ -315,26 +333,28 @@ namespace Commo
 
   auto Cleanup() -> void
   {
-    m_stop = true;
+    m_stop.store( true, std::memory_order_release );
     if( m_thread.joinable() )
       m_thread.join();
 
+    //curl_slist_free_all( m_headers );
+    //curl_easy_cleanup( m_handle );
     curl_global_cleanup();
   }
 
   auto GetPing() -> uint64_t const
   {
-    return uint64_t(m_ping * 1000);
+    return uint64_t( m_ping.load( std::memory_order_acquire ) / 1000 );
   }
 
   auto GetTotalShares() -> uint64_t const
   {
-    return totalCount;
+    return totalCount.load( std::memory_order_acquire );
   }
 
   auto GetConnectionErrorCount() -> uint64_t const
   {
-    return failureCount;
+    return failureCount.load( std::memory_order_acquire );
   }
 
   auto GetConnectionErrorLog() -> std::vector<std::string> const

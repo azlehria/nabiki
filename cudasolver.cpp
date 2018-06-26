@@ -37,22 +37,22 @@ auto CUDASolver::getHashrate() const -> double const
 
 auto CUDASolver::getTemperature() const -> uint32_t const
 {
-  uint32_t t_temp;
+  static uint32_t t_temp;
   nvmlDeviceGetTemperature( m_nvml_handle, NVML_TEMPERATURE_GPU, &t_temp );
   return t_temp;
 }
 
 auto CUDASolver::getDeviceState() const -> device_info_t const
 {
-  uint32_t t_core;
+  static uint32_t t_core;
+  static uint32_t t_memory;
+  static uint32_t t_power;
+  static uint32_t t_temp;
+  static uint32_t t_fan;
   nvmlDeviceGetClockInfo( m_nvml_handle, NVML_CLOCK_GRAPHICS, &t_core );
-  uint32_t t_memory;
   nvmlDeviceGetClockInfo( m_nvml_handle, NVML_CLOCK_MEM, &t_memory );
-  uint32_t t_power;
   nvmlDeviceGetPowerUsage( m_nvml_handle, &t_power );
-  uint32_t t_temp;
   nvmlDeviceGetTemperature( m_nvml_handle, NVML_TEMPERATURE_GPU, &t_temp );
-  uint32_t t_fan;
   nvmlDeviceGetFanSpeed( m_nvml_handle, &t_fan );
 
   return { m_name, t_core, t_memory, t_power / 1000, t_temp, t_fan, m_hash_average };
@@ -83,13 +83,12 @@ auto CUDASolver::getNextSearchSpace() -> uint64_t const
     ++m_hash_count_samples;
   }
 
-  double temp_average{ m_hash_average };
+  double temp_average{ m_hash_average.load( std::memory_order_acquire ) };
   temp_average += ((m_hash_count / t) - temp_average) / m_hash_count_samples;
-  if( std::isnan( temp_average ) || std::isinf( temp_average ) )
+  if( !std::isnan( temp_average ) && !std::isinf( temp_average ) )
   {
-    temp_average = m_hash_average;
+    m_hash_average.store( temp_average, std::memory_order_release );
   }
-  m_hash_average = temp_average;
   return MinerState::getIncSearchSpace( m_threads );
 }
 

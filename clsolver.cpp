@@ -239,13 +239,12 @@ auto CLSolver::getNextSearchSpace() -> uint64_t const
     ++m_hash_count_samples;
   }
 
-  double temp_average{ m_hash_average };
+  double temp_average{ m_hash_average.load( std::memory_order_acquire ) };
   temp_average += ((m_hash_count / t) / 1000000 - temp_average) / m_hash_count_samples;
-  if( std::isnan( temp_average ) || std::isinf( temp_average ) )
+  if( !std::isnan( temp_average ) && !std::isinf( temp_average ) )
   {
-    temp_average = m_hash_average;
+    m_hash_average.store( temp_average, std::memory_order_release );
   }
-  m_hash_average = temp_average;
   return MinerState::getIncSearchSpace( m_threads );
 }
 

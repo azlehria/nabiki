@@ -14,9 +14,6 @@
     <ClCompile Include="commo.cpp">
       <Filter>Network</Filter>
     </ClCompile>
-    <ClCompile Include="keccak.c">
-      <Filter>Libs</Filter>
-    </ClCompile>
     <ClCompile Include="miner_state.cpp" />
     <ClCompile Include="hybridminer.cpp" />
     <ClCompile Include="BigInt\BigIntegerUtils.cpp">
@@ -36,6 +33,9 @@
     </ClCompile>
     <ClCompile Include="win32.cpp">
       <Filter>Platforms</Filter>
+    </ClCompile>
+    <ClCompile Include="keccak.c">
+      <Filter>Libs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

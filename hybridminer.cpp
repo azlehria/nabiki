@@ -154,7 +154,7 @@ namespace HybridMiner
 
     Telemetry::Init();
 
-    while( !m_stop )
+    while( !m_stop.load( std::memory_order_acquire ) )
     {
       auto timerNext = steady_clock::now() + 1ms;
 
@@ -187,7 +187,7 @@ namespace HybridMiner
 
   auto stop() -> void
   {
-    m_stop = true;
+    m_stop.store( true, std::memory_order_release );
   }
 
   auto getHashrates() -> std::vector<double> const
