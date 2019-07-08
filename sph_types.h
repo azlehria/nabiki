@@ -44,7 +44,7 @@
  * @author   Thomas Pornin <thomas.pornin@cryptolog.com>
  */
 
-#ifndef SPH_TYPES_H__
+#if !defined SPH_TYPES_H__
 #define SPH_TYPES_H__
 
 #include <limits.h>
@@ -59,7 +59,7 @@
 
 /* ============= BEGIN documentation block for Doxygen ============ */
 
-#ifdef DOXYGEN_IGNORE
+#if defined DOXYGEN_IGNORE
 
 /** @mainpage sphlib C code documentation
  *
@@ -804,7 +804,7 @@ static inline void sph_enc64be_aligned(void *dst, sph_u64 val);
 
 /* ============== END documentation block for Doxygen ============= */
 
-#ifndef DOXYGEN_IGNORE
+#if !defined DOXYGEN_IGNORE
 
 /*
  * We want to define the types "sph_u32" and "sph_u64" which hold
@@ -826,15 +826,15 @@ static inline void sph_enc64be_aligned(void *dst, sph_u64 val);
 
 #include <stdint.h>
 
-#ifdef UINT32_MAX
+#if defined UINT32_MAX
 typedef uint32_t sph_u32;
 typedef int32_t sph_s32;
 #else
 typedef uint_fast32_t sph_u32;
 typedef int_fast32_t sph_s32;
 #endif
-#if !SPH_NO_64
-#ifdef UINT64_MAX
+#if !defined SPH_NO_64
+#if defined UINT64_MAX
 typedef uint64_t sph_u64;
 typedef int64_t sph_s64;
 #else
@@ -844,7 +844,7 @@ typedef int_fast64_t sph_s64;
 #endif
 
 #define SPH_C32(x)    ((sph_u32)(x))
-#if !SPH_NO_64
+#if !defined SPH_NO_64
 #define SPH_C64(x)    ((sph_u64)(x))
 #define SPH_64  1
 #endif
@@ -874,7 +874,7 @@ typedef long sph_s32;
 
 #endif
 
-#if !SPH_NO_64
+#if !defined SPH_NO_64
 
 /*
  * We want a 64-bit type. We use "unsigned long" if it is wide enough (as
@@ -919,7 +919,7 @@ typedef long long sph_s64;
  * a "true" 64-bit architectures. This is also true with Visual C on
  * amd64, even though the "long" type is limited to 32 bits.
  */
-#if SPH_64 && (((ULONG_MAX >> 31) >> 31) >= 3 || defined _M_X64)
+#if defined SPH_64 && (((ULONG_MAX >> 31) >> 31) >= 3 || defined _M_X64)
 #define SPH_64_TRUE   1
 #endif
 
@@ -933,7 +933,7 @@ typedef long long sph_s64;
 #define SPH_ROTL32(x, n)   SPH_T32(((x) << (n)) | ((x) >> (32 - (n))))
 #define SPH_ROTR32(x, n)   SPH_ROTL32(x, (32 - (n)))
 
-#if SPH_64
+#if defined SPH_64
 
 #define SPH_T64(x)    ((x) & SPH_C64(0xFFFFFFFFFFFFFFFF))
 #define SPH_ROTL64(x, n)   SPH_T64(((x) << (n)) | ((x) >> (64 - (n))))
@@ -941,7 +941,7 @@ typedef long long sph_s64;
 
 #endif
 
-#ifndef DOXYGEN_IGNORE
+#if !defined DOXYGEN_IGNORE
 /*
  * Define SPH_INLINE to be an "inline" qualifier, if available. We define
  * some small macro-like functions which benefit greatly from being inlined.
@@ -1002,10 +1002,10 @@ typedef long long sph_s64;
 #define SPH_DETECT_UNALIGNED         1
 #define SPH_DETECT_LITTLE_ENDIAN     1
 #define SPH_DETECT_UPTR              sph_u32
-#ifdef __GNUC__
+#if defined __GNUC__
 #define SPH_DETECT_I386_GCC          1
 #endif
-#ifdef _MSC_VER
+#if defined _MSC_VER
 #define SPH_DETECT_I386_MSVC         1
 #endif
 
@@ -1017,10 +1017,10 @@ typedef long long sph_s64;
 #define SPH_DETECT_UNALIGNED         1
 #define SPH_DETECT_LITTLE_ENDIAN     1
 #define SPH_DETECT_UPTR              sph_u64
-#ifdef __GNUC__
+#if defined __GNUC__
 #define SPH_DETECT_AMD64_GCC         1
 #endif
-#ifdef _MSC_VER
+#if defined _MSC_VER
 #define SPH_DETECT_AMD64_MSVC        1
 #endif
 
@@ -1032,7 +1032,7 @@ typedef long long sph_s64;
 
 #define SPH_DETECT_BIG_ENDIAN        1
 #define SPH_DETECT_UPTR              sph_u64
-#ifdef __GNUC__
+#if defined __GNUC__
 #define SPH_DETECT_SPARCV9_GCC_64    1
 #define SPH_DETECT_LITTLE_FAST       1
 #endif
@@ -1053,21 +1053,21 @@ typedef long long sph_s64;
 /*
  * ARM, little-endian.
  */
-#elif defined __arm__ && __ARMEL__
+#elif defined __arm__ && defined __ARMEL__
 
 #define SPH_DETECT_LITTLE_ENDIAN     1
 
 /*
  * MIPS, little-endian.
  */
-#elif MIPSEL || _MIPSEL || __MIPSEL || __MIPSEL__
+#elif defined MIPSEL || defined _MIPSEL || defined __MIPSEL || defined __MIPSEL__
 
 #define SPH_DETECT_LITTLE_ENDIAN     1
 
 /*
  * MIPS, big-endian.
  */
-#elif MIPSEB || _MIPSEB || __MIPSEB || __MIPSEB__
+#elif defined MIPSEB || defined _MIPSEB || defined __MIPSEB || defined __MIPSEB__
 
 #define SPH_DETECT_BIG_ENDIAN        1
 
@@ -1166,18 +1166,18 @@ typedef long long sph_s64;
 #define SPH_PPC64_GCC         SPH_DETECT_PPC64_GCC
 #endif
 
-#if SPH_LITTLE_ENDIAN && !defined SPH_LITTLE_FAST
+#if defined SPH_LITTLE_ENDIAN && !defined SPH_LITTLE_FAST
 #define SPH_LITTLE_FAST              1
 #endif
-#if SPH_BIG_ENDIAN && !defined SPH_BIG_FAST
+#if defined SPH_BIG_ENDIAN && !defined SPH_BIG_FAST
 #define SPH_BIG_FAST                 1
 #endif
 
-#if defined SPH_UPTR && !(SPH_LITTLE_ENDIAN || SPH_BIG_ENDIAN)
+#if defined SPH_UPTR && !(defined SPH_LITTLE_ENDIAN || defined SPH_BIG_ENDIAN)
 #error SPH_UPTR defined, but endianness is not known.
 #endif
 
-#if SPH_I386_GCC && !SPH_NO_ASM
+#if defined SPH_I386_GCC && !defined SPH_NO_ASM
 
 /*
  * On x86 32-bit, with gcc, we use the bswapl opcode to byte-swap 32-bit
@@ -1191,7 +1191,7 @@ sph_bswap32(sph_u32 x)
 	return x;
 }
 
-#if SPH_64
+#if defined SPH_64
 
 static SPH_INLINE sph_u64
 sph_bswap64(sph_u64 x)
@@ -1202,7 +1202,7 @@ sph_bswap64(sph_u64 x)
 
 #endif
 
-#elif SPH_AMD64_GCC && !SPH_NO_ASM
+#elif defined SPH_AMD64_GCC && !defined SPH_NO_ASM
 
 /*
  * On x86 64-bit, with gcc, we use the bswapl opcode to byte-swap 32-bit
@@ -1216,7 +1216,7 @@ sph_bswap32(sph_u32 x)
 	return x;
 }
 
-#if SPH_64
+#if defined SPH_64
 
 static SPH_INLINE sph_u64
 sph_bswap64(sph_u64 x)
@@ -1271,7 +1271,7 @@ sph_bswap32(sph_u32 x)
 	return x;
 }
 
-#if SPH_64
+#if defined SPH_64
 
 /**
  * Byte-swap a 64-bit value.
@@ -1294,7 +1294,7 @@ sph_bswap64(sph_u64 x)
 
 #endif
 
-#if SPH_SPARCV9_GCC && !SPH_NO_ASM
+#if defined SPH_SPARCV9_GCC && !defined SPH_NO_ASM
 
 /*
  * On UltraSPARC systems, native ordering is big-endian, but it is
@@ -1367,14 +1367,14 @@ static SPH_INLINE void
 sph_enc32be(void *dst, sph_u32 val)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_LITTLE_ENDIAN
 	val = sph_bswap32(val);
 #endif
 	*(sph_u32 *)dst = val;
 #else
 	if (((SPH_UPTR)dst & 3) == 0) {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 		val = sph_bswap32(val);
 #endif
 		*(sph_u32 *)dst = val;
@@ -1403,9 +1403,9 @@ sph_enc32be(void *dst, sph_u32 val)
 static SPH_INLINE void
 sph_enc32be_aligned(void *dst, sph_u32 val)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	*(sph_u32 *)dst = sph_bswap32(val);
-#elif SPH_BIG_ENDIAN
+#elif defined SPH_BIG_ENDIAN
 	*(sph_u32 *)dst = val;
 #else
 	((unsigned char *)dst)[0] = (val >> 24);
@@ -1425,15 +1425,15 @@ static SPH_INLINE sph_u32
 sph_dec32be(const void *src)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_LITTLE_ENDIAN
 	return sph_bswap32(*(const sph_u32 *)src);
 #else
 	return *(const sph_u32 *)src;
 #endif
 #else
 	if (((SPH_UPTR)src & 3) == 0) {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 		return sph_bswap32(*(const sph_u32 *)src);
 #else
 		return *(const sph_u32 *)src;
@@ -1463,9 +1463,9 @@ sph_dec32be(const void *src)
 static SPH_INLINE sph_u32
 sph_dec32be_aligned(const void *src)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	return sph_bswap32(*(const sph_u32 *)src);
-#elif SPH_BIG_ENDIAN
+#elif defined SPH_BIG_ENDIAN
 	return *(const sph_u32 *)src;
 #else
 	return ((sph_u32)(((const unsigned char *)src)[0]) << 24)
@@ -1485,8 +1485,8 @@ static SPH_INLINE void
 sph_enc32le(void *dst, sph_u32 val)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_BIG_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_BIG_ENDIAN
 	val = sph_bswap32(val);
 #endif
 	*(sph_u32 *)dst = val;
@@ -1521,9 +1521,9 @@ sph_enc32le(void *dst, sph_u32 val)
 static SPH_INLINE void
 sph_enc32le_aligned(void *dst, sph_u32 val)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	*(sph_u32 *)dst = val;
-#elif SPH_BIG_ENDIAN
+#elif defined SPH_BIG_ENDIAN
 	*(sph_u32 *)dst = sph_bswap32(val);
 #else
 	((unsigned char *)dst)[0] = val;
@@ -1543,16 +1543,16 @@ static SPH_INLINE sph_u32
 sph_dec32le(const void *src)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_BIG_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_BIG_ENDIAN
 	return sph_bswap32(*(const sph_u32 *)src);
 #else
 	return *(const sph_u32 *)src;
 #endif
 #else
 	if (((SPH_UPTR)src & 3) == 0) {
-#if SPH_BIG_ENDIAN
-#if SPH_SPARCV9_GCC && !SPH_NO_ASM
+#if defined SPH_BIG_ENDIAN
+#if defined SPH_SPARCV9_GCC && !defined SPH_NO_ASM
 		sph_u32 tmp;
 
 		/*
@@ -1614,10 +1614,10 @@ sph_dec32le(const void *src)
 static SPH_INLINE sph_u32
 sph_dec32le_aligned(const void *src)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	return *(const sph_u32 *)src;
-#elif SPH_BIG_ENDIAN
-#if SPH_SPARCV9_GCC && !SPH_NO_ASM
+#elif defined SPH_BIG_ENDIAN
+#if defined SPH_SPARCV9_GCC && !defined SPH_NO_ASM
 	sph_u32 tmp;
 
 	__asm__ __volatile__ ("lda [%1]0x88,%0" : "=r" (tmp) : "r" (src));
@@ -1642,7 +1642,7 @@ sph_dec32le_aligned(const void *src)
 #endif
 }
 
-#if SPH_64
+#if defined SPH_64
 
 /**
  * Encode a 64-bit value into the provided buffer (big endian convention).
@@ -1654,14 +1654,14 @@ static SPH_INLINE void
 sph_enc64be(void *dst, sph_u64 val)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_LITTLE_ENDIAN
 	val = sph_bswap64(val);
 #endif
 	*(sph_u64 *)dst = val;
 #else
 	if (((SPH_UPTR)dst & 7) == 0) {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 		val = sph_bswap64(val);
 #endif
 		*(sph_u64 *)dst = val;
@@ -1698,9 +1698,9 @@ sph_enc64be(void *dst, sph_u64 val)
 static SPH_INLINE void
 sph_enc64be_aligned(void *dst, sph_u64 val)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	*(sph_u64 *)dst = sph_bswap64(val);
-#elif SPH_BIG_ENDIAN
+#elif defined SPH_BIG_ENDIAN
 	*(sph_u64 *)dst = val;
 #else
 	((unsigned char *)dst)[0] = (val >> 56);
@@ -1724,15 +1724,15 @@ static SPH_INLINE sph_u64
 sph_dec64be(const void *src)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_LITTLE_ENDIAN
 	return sph_bswap64(*(const sph_u64 *)src);
 #else
 	return *(const sph_u64 *)src;
 #endif
 #else
 	if (((SPH_UPTR)src & 7) == 0) {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 		return sph_bswap64(*(const sph_u64 *)src);
 #else
 		return *(const sph_u64 *)src;
@@ -1770,9 +1770,9 @@ sph_dec64be(const void *src)
 static SPH_INLINE sph_u64
 sph_dec64be_aligned(const void *src)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	return sph_bswap64(*(const sph_u64 *)src);
-#elif SPH_BIG_ENDIAN
+#elif defined SPH_BIG_ENDIAN
 	return *(const sph_u64 *)src;
 #else
 	return ((sph_u64)(((const unsigned char *)src)[0]) << 56)
@@ -1796,14 +1796,14 @@ static SPH_INLINE void
 sph_enc64le(void *dst, sph_u64 val)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_BIG_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_BIG_ENDIAN
 	val = sph_bswap64(val);
 #endif
 	*(sph_u64 *)dst = val;
 #else
 	if (((SPH_UPTR)dst & 7) == 0) {
-#if SPH_BIG_ENDIAN
+#if defined SPH_BIG_ENDIAN
 		val = sph_bswap64(val);
 #endif
 		*(sph_u64 *)dst = val;
@@ -1840,9 +1840,9 @@ sph_enc64le(void *dst, sph_u64 val)
 static SPH_INLINE void
 sph_enc64le_aligned(void *dst, sph_u64 val)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	*(sph_u64 *)dst = val;
-#elif SPH_BIG_ENDIAN
+#elif defined SPH_BIG_ENDIAN
 	*(sph_u64 *)dst = sph_bswap64(val);
 #else
 	((unsigned char *)dst)[0] = val;
@@ -1866,16 +1866,16 @@ static SPH_INLINE sph_u64
 sph_dec64le(const void *src)
 {
 #if defined SPH_UPTR
-#if SPH_UNALIGNED
-#if SPH_BIG_ENDIAN
+#if defined SPH_UNALIGNED
+#if defined SPH_BIG_ENDIAN
 	return sph_bswap64(*(const sph_u64 *)src);
 #else
 	return *(const sph_u64 *)src;
 #endif
 #else
 	if (((SPH_UPTR)src & 7) == 0) {
-#if SPH_BIG_ENDIAN
-#if SPH_SPARCV9_GCC_64 && !SPH_NO_ASM
+#if defined SPH_BIG_ENDIAN
+#if defined SPH_SPARCV9_GCC_64 && !defined SPH_NO_ASM
 		sph_u64 tmp;
 
 		__asm__ __volatile__ (
@@ -1884,11 +1884,11 @@ sph_dec64le(const void *src)
 /*
  * Not worth it generally.
  *
-#elif SPH_PPC32_GCC && !SPH_NO_ASM
+#elif defined SPH_PPC32_GCC && !defined SPH_NO_ASM
 		return (sph_u64)sph_dec32le_aligned(src)
 			| ((sph_u64)sph_dec32le_aligned(
 				(const char *)src + 4) << 32);
-#elif SPH_PPC64_GCC && !SPH_NO_ASM
+#elif defined SPH_PPC64_GCC && !defined SPH_NO_ASM
 		sph_u64 tmp;
 
 		__asm__ __volatile__ (
@@ -1934,10 +1934,10 @@ sph_dec64le(const void *src)
 static SPH_INLINE sph_u64
 sph_dec64le_aligned(const void *src)
 {
-#if SPH_LITTLE_ENDIAN
+#if defined SPH_LITTLE_ENDIAN
 	return *(const sph_u64 *)src;
-#elif SPH_BIG_ENDIAN
-#if SPH_SPARCV9_GCC_64 && !SPH_NO_ASM
+#elif defined SPH_BIG_ENDIAN
+#if defined SPH_SPARCV9_GCC_64 && !defined SPH_NO_ASM
 	sph_u64 tmp;
 
 	__asm__ __volatile__ ("ldxa [%1]0x88,%0" : "=r" (tmp) : "r" (src));

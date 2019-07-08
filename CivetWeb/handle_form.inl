@@ -19,7 +19,6 @@
  * THE SOFTWARE.
  */
 
-
 static int
 url_encoded_field_found(const struct mg_connection *conn,
                         const char *key,
@@ -83,7 +82,6 @@ url_encoded_field_found(const struct mg_connection *conn,
 	return ret;
 }
 
-
 static int
 url_encoded_field_get(const struct mg_connection *conn,
                       const char *key,
@@ -121,7 +119,6 @@ url_encoded_field_get(const struct mg_connection *conn,
 	return ret;
 }
 
-
 static int
 unencoded_field_get(const struct mg_connection *conn,
                     const char *key,
@@ -138,7 +135,6 @@ unencoded_field_get(const struct mg_connection *conn,
 	return fdh->field_get(key_dec, value, value_len, fdh->user_data);
 }
 
-
 static int
 field_stored(const struct mg_connection *conn,
              const char *path,
@@ -151,7 +147,6 @@ field_stored(const struct mg_connection *conn,
 
 	return fdh->field_store(path, file_size, fdh->user_data);
 }
-
 
 static const char *
 search_boundary(const char *buf,
@@ -174,14 +169,13 @@ search_boundary(const char *buf,
 	return NULL;
 }
 
-
 int
 mg_handle_form_request(struct mg_connection *conn,
                        struct mg_form_data_handler *fdh)
 {
 	const char *content_type;
 	char path[512];
-	char buf[1024]; /* Must not be smaller than ~900 - see sanity check */
+	char buf[MG_BUF_LEN]; /* Must not be smaller than ~900 */
 	int field_storage;
 	int buf_fill = 0;
 	int r;
@@ -192,6 +186,10 @@ mg_handle_form_request(struct mg_connection *conn,
 
 	int has_body_data =
 	    (conn->request_info.content_length > 0) || (conn->is_chunked);
+
+	/* Unused without filesystems */
+	(void)fstore;
+	(void)file_size;
 
 	/* There are three ways to encode data from a HTML form:
 	 * 1) method: GET (default)
@@ -270,9 +268,18 @@ mg_handle_form_request(struct mg_connection *conn,
 
 			if (field_storage == MG_FORM_FIELD_STORAGE_GET) {
 				/* Call callback */
-				url_encoded_field_get(
+				r = url_encoded_field_get(
 				    conn, data, (size_t)keylen, val, (size_t)vallen, fdh);
+				if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+					/* Stop request handling */
+					break;
+				}
+				if (r == MG_FORM_FIELD_HANDLE_NEXT) {
+					/* Skip to next field */
+					field_storage = MG_FORM_FIELD_STORAGE_SKIP;
+				}
 			}
+#if !defined(NO_FILESYSTEMS)
 			if (field_storage == MG_FORM_FIELD_STORAGE_STORE) {
 				/* Store the content to a file */
 				if (mg_fopen(conn, path, MG_FOPEN_MODE_WRITE, &fstore) == 0) {
@@ -296,7 +303,12 @@ mg_handle_form_request(struct mg_connection *conn,
 						r = mg_fclose(&fstore.access);
 						if (r == 0) {
 							/* stored successfully */
-							field_stored(conn, path, file_size, fdh);
+							r = field_stored(conn, path, file_size, fdh);
+							if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+								/* Stop request handling */
+								break;
+							}
+
 						} else {
 							mg_cry_internal(conn,
 							                "%s: Error saving file %s",
@@ -314,6 +326,7 @@ mg_handle_form_request(struct mg_connection *conn,
 					                path);
 				}
 			}
+#endif /* NO_FILESYSTEMS */
 
 			/* if (field_storage == MG_FORM_FIELD_STORAGE_READ) { */
 			/* The idea of "field_storage=read" is to let the API user read
@@ -344,8 +357,12 @@ mg_handle_form_request(struct mg_connection *conn,
 	content_type = mg_get_header(conn, "Content-Type");
 
 	if (!content_type
-	    || !mg_strcasecmp(content_type, "APPLICATION/X-WWW-FORM-URLENCODED")
-	    || !mg_strcasecmp(content_type, "APPLICATION/WWW-FORM-URLENCODED")) {
+	    || !mg_strncasecmp(content_type,
+	                       "APPLICATION/X-WWW-FORM-URLENCODED",
+	                       33)
+	    || !mg_strncasecmp(content_type,
+	                       "APPLICATION/WWW-FORM-URLENCODED",
+	                       31)) {
 		/* The form data is in the request body data, encoded in key/value
 		 * pairs. */
 		int all_data_read = 0;
@@ -367,17 +384,17 @@ mg_handle_form_request(struct mg_connection *conn,
 
 				size_t to_read = sizeof(buf) - 1 - (size_t)buf_fill;
 				r = mg_read(conn, buf + (size_t)buf_fill, to_read);
-				if (r < 0) {
+				if ((r < 0) || ((r == 0) && all_data_read)) {
 					/* read error */
 					return -1;
 				}
-				if (r != (int)to_read) {
+				if (r == 0) {
 					/* TODO: Create a function to get "all_data_read" from
 					 * the conn object. All data is read if the Content-Length
 					 * has been reached, or if chunked encoding is used and
 					 * the end marker has been read, or if the connection has
 					 * been closed. */
-					all_data_read = 1;
+					all_data_read = (buf_fill == 0);
 				}
 				buf_fill += r;
 				buf[buf_fill] = 0;
@@ -412,6 +429,7 @@ mg_handle_form_request(struct mg_connection *conn,
 				break;
 			}
 
+#if !defined(NO_FILESYSTEMS)
 			if (field_storage == MG_FORM_FIELD_STORAGE_STORE) {
 				if (mg_fopen(conn, path, MG_FOPEN_MODE_WRITE, &fstore) == 0) {
 					fstore.access.fp = NULL;
@@ -424,6 +442,7 @@ mg_handle_form_request(struct mg_connection *conn,
 					                path);
 				}
 			}
+#endif /* NO_FILESYSTEMS */
 
 			get_block = 0;
 			/* Loop to read values larger than sizeof(buf)-keylen-2 */
@@ -447,15 +466,25 @@ mg_handle_form_request(struct mg_connection *conn,
 #endif
 
 					/* Call callback */
-					url_encoded_field_get(conn,
-					                      ((get_block > 0) ? NULL : buf),
-					                      ((get_block > 0) ? 0
-					                                       : (size_t)keylen),
-					                      val,
-					                      (size_t)vallen,
-					                      fdh);
+					r = url_encoded_field_get(conn,
+					                          ((get_block > 0) ? NULL : buf),
+					                          ((get_block > 0)
+					                               ? 0
+					                               : (size_t)keylen),
+					                          val,
+					                          (size_t)vallen,
+					                          fdh);
 					get_block++;
+					if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+						/* Stop request handling */
+						break;
+					}
+					if (r == MG_FORM_FIELD_HANDLE_NEXT) {
+						/* Skip to next field */
+						field_storage = MG_FORM_FIELD_STORAGE_SKIP;
+					}
 				}
+#if !defined(NO_FILESYSTEMS)
 				if (fstore.access.fp) {
 					size_t n = (size_t)
 					    fwrite(val, 1, (size_t)vallen, fstore.access.fp);
@@ -469,6 +498,7 @@ mg_handle_form_request(struct mg_connection *conn,
 					}
 					file_size += (int64_t)n;
 				}
+#endif /* NO_FILESYSTEMS */
 
 				if (!end_of_key_value_pair_found) {
 					used = next - buf;
@@ -481,21 +511,23 @@ mg_handle_form_request(struct mg_connection *conn,
 
 						size_t to_read = sizeof(buf) - 1 - (size_t)buf_fill;
 						r = mg_read(conn, buf + (size_t)buf_fill, to_read);
-						if (r < 0) {
+						if ((r < 0) || ((r == 0) && all_data_read)) {
+#if !defined(NO_FILESYSTEMS)
 							/* read error */
 							if (fstore.access.fp) {
 								mg_fclose(&fstore.access);
 								remove_bad_file(conn, path);
 							}
 							return -1;
+#endif /* NO_FILESYSTEMS */
 						}
-						if (r != (int)to_read) {
+						if (r == 0) {
 							/* TODO: Create a function to get "all_data_read"
 							 * from the conn object. All data is read if the
 							 * Content-Length has been reached, or if chunked
 							 * encoding is used and the end marker has been
 							 * read, or if the connection has been closed. */
-							all_data_read = 1;
+							all_data_read = (buf_fill == 0);
 						}
 						buf_fill += r;
 						buf[buf_fill] = 0;
@@ -508,11 +540,16 @@ mg_handle_form_request(struct mg_connection *conn,
 
 			} while (!end_of_key_value_pair_found);
 
+#if !defined(NO_FILESYSTEMS)
 			if (fstore.access.fp) {
 				r = mg_fclose(&fstore.access);
 				if (r == 0) {
 					/* stored successfully */
-					field_stored(conn, path, file_size, fdh);
+					r = field_stored(conn, path, file_size, fdh);
+					if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+						/* Stop request handling */
+						break;
+					}
 				} else {
 					mg_cry_internal(conn,
 					                "%s: Error saving file %s",
@@ -522,6 +559,7 @@ mg_handle_form_request(struct mg_connection *conn,
 				}
 				fstore.access.fp = NULL;
 			}
+#endif /* NO_FILESYSTEMS */
 
 			if (all_data_read && (buf_fill == 0)) {
 				/* nothing more to process */
@@ -549,6 +587,7 @@ mg_handle_form_request(struct mg_connection *conn,
 		const char *content_disp, *hend, *fbeg, *fend, *nbeg, *nend;
 		const char *next;
 		unsigned part_no;
+		int all_data_read = 0;
 
 		memset(&part_header, 0, sizeof(part_header));
 
@@ -602,20 +641,10 @@ mg_handle_form_request(struct mg_connection *conn,
 			 * leading hyphens.
 			 */
 
-			/* The initial sanity check
-			 * (bl + 800 > sizeof(buf))
-			 * is no longer required, since sizeof(buf) == 1024
-			 *
-			 * Original comment:
-			 */
-			/* Sanity check:  The algorithm can not work if bl >= sizeof(buf),
-			 * and it will not work effectively, if the buf is only a few byte
-			 * larger than bl, or if buf can not hold the multipart header
-			 * plus the boundary.
-			 * Check some reasonable number here, that should be fulfilled by
-			 * any reasonable request from every browser. If it is not
-			 * fulfilled, it might be a hand-made request, intended to
-			 * interfere with the algorithm. */
+			/* The algorithm can not work if bl >= sizeof(buf), or if buf
+			 * can not hold the multipart header plus the boundary.
+			 * Requests with long boundaries are not RFC compliant, maybe they
+			 * are intended attacks to interfere with this algorithm. */
 			mg_free(boundary);
 			return -1;
 		}
@@ -629,15 +658,21 @@ mg_handle_form_request(struct mg_connection *conn,
 		for (part_no = 0;; part_no++) {
 			size_t towrite, fnlen, n;
 			int get_block;
+			size_t to_read = sizeof(buf) - 1 - (size_t)buf_fill;
 
-			r = mg_read(conn,
-			            buf + (size_t)buf_fill,
-			            sizeof(buf) - 1 - (size_t)buf_fill);
-			if (r < 0) {
+			/* Unused without filesystems */
+			(void)n;
+
+			r = mg_read(conn, buf + (size_t)buf_fill, to_read);
+			if ((r < 0) || ((r == 0) && all_data_read)) {
 				/* read error */
 				mg_free(boundary);
 				return -1;
 			}
+			if (r == 0) {
+				all_data_read = (buf_fill == 0);
+			}
+
 			buf_fill += r;
 			buf[buf_fill] = 0;
 			if (buf_fill < 1) {
@@ -648,7 +683,7 @@ mg_handle_form_request(struct mg_connection *conn,
 
 			if (part_no == 0) {
 				int d = 0;
-				while ((d < buf_fill) && (buf[d] != '-')) {
+				while ((buf[d] != '-') && (d < buf_fill)) {
 					d++;
 				}
 				if ((d > 0) && (buf[d] == '-')) {
@@ -835,6 +870,7 @@ mg_handle_form_request(struct mg_connection *conn,
 			                       boundary,
 			                       bl);
 
+#if !defined(NO_FILESYSTEMS)
 			if (field_storage == MG_FORM_FIELD_STORAGE_STORE) {
 				/* Store the content to a file */
 				if (mg_fopen(conn, path, MG_FOPEN_MODE_WRITE, &fstore) == 0) {
@@ -849,29 +885,47 @@ mg_handle_form_request(struct mg_connection *conn,
 					                path);
 				}
 			}
+#endif /* NO_FILESYSTEMS */
 
 			get_block = 0;
 			while (!next) {
 				/* Set "towrite" to the number of bytes available
 				 * in the buffer */
 				towrite = (size_t)(buf - hend + buf_fill);
+
+				if (towrite < bl + 4) {
+					/* Not enough data stored. */
+					/* Incomplete request. */
+					mg_free(boundary);
+					return -1;
+				}
+
 				/* Subtract the boundary length, to deal with
 				 * cases the boundary is only partially stored
 				 * in the buffer. */
 				towrite -= bl + 4;
 
 				if (field_storage == MG_FORM_FIELD_STORAGE_GET) {
-					unencoded_field_get(conn,
-					                    ((get_block > 0) ? NULL : nbeg),
-					                    ((get_block > 0)
-					                         ? 0
-					                         : (size_t)(nend - nbeg)),
-					                    hend,
-					                    towrite,
-					                    fdh);
+					r = unencoded_field_get(conn,
+					                        ((get_block > 0) ? NULL : nbeg),
+					                        ((get_block > 0)
+					                             ? 0
+					                             : (size_t)(nend - nbeg)),
+					                        hend,
+					                        towrite,
+					                        fdh);
 					get_block++;
+					if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+						/* Stop request handling */
+						break;
+					}
+					if (r == MG_FORM_FIELD_HANDLE_NEXT) {
+						/* Skip to next field */
+						field_storage = MG_FORM_FIELD_STORAGE_SKIP;
+					}
 				}
 
+#if !defined(NO_FILESYSTEMS)
 				if (field_storage == MG_FORM_FIELD_STORAGE_STORE) {
 					if (fstore.access.fp) {
 
@@ -888,45 +942,66 @@ mg_handle_form_request(struct mg_connection *conn,
 						file_size += (int64_t)n;
 					}
 				}
+#endif /* NO_FILESYSTEMS */
 
 				memmove(buf, hend + towrite, bl + 4);
 				buf_fill = (int)(bl + 4);
 				hend = buf;
 
 				/* Read new data */
-				r = mg_read(conn,
-				            buf + (size_t)buf_fill,
-				            sizeof(buf) - 1 - (size_t)buf_fill);
-				if (r < 0) {
+				to_read = sizeof(buf) - 1 - (size_t)buf_fill;
+				r = mg_read(conn, buf + (size_t)buf_fill, to_read);
+				if ((r < 0) || ((r == 0) && all_data_read)) {
+#if !defined(NO_FILESYSTEMS)
 					/* read error */
 					if (fstore.access.fp) {
 						mg_fclose(&fstore.access);
 						remove_bad_file(conn, path);
 					}
+#endif /* NO_FILESYSTEMS */
 					mg_free(boundary);
 					return -1;
 				}
+				if (r == 0) {
+					all_data_read = (buf_fill == 0);
+				}
+
 				buf_fill += r;
 				buf[buf_fill] = 0;
 				/* buf_fill is at least 8 here */
 
 				/* Find boundary */
 				next = search_boundary(buf, (size_t)buf_fill, boundary, bl);
+
+				if (!next && (r == 0)) {
+					/* incomplete request */
+					all_data_read = 1;
+				}
 			}
 
 			towrite = (size_t)(next - hend);
 
 			if (field_storage == MG_FORM_FIELD_STORAGE_GET) {
 				/* Call callback */
-				unencoded_field_get(conn,
-				                    ((get_block > 0) ? NULL : nbeg),
-				                    ((get_block > 0) ? 0
-				                                     : (size_t)(nend - nbeg)),
-				                    hend,
-				                    towrite,
-				                    fdh);
+				r = unencoded_field_get(conn,
+				                        ((get_block > 0) ? NULL : nbeg),
+				                        ((get_block > 0)
+				                             ? 0
+				                             : (size_t)(nend - nbeg)),
+				                        hend,
+				                        towrite,
+				                        fdh);
+				if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+					/* Stop request handling */
+					break;
+				}
+				if (r == MG_FORM_FIELD_HANDLE_NEXT) {
+					/* Skip to next field */
+					field_storage = MG_FORM_FIELD_STORAGE_SKIP;
+				}
 			}
 
+#if !defined(NO_FILESYSTEMS)
 			if (field_storage == MG_FORM_FIELD_STORAGE_STORE) {
 
 				if (fstore.access.fp) {
@@ -943,7 +1018,11 @@ mg_handle_form_request(struct mg_connection *conn,
 						r = mg_fclose(&fstore.access);
 						if (r == 0) {
 							/* stored successfully */
-							field_stored(conn, path, file_size, fdh);
+							r = field_stored(conn, path, file_size, fdh);
+							if (r == MG_FORM_FIELD_HANDLE_ABORT) {
+								/* Stop request handling */
+								break;
+							}
 						} else {
 							mg_cry_internal(conn,
 							                "%s: Error saving file %s",
@@ -955,6 +1034,7 @@ mg_handle_form_request(struct mg_connection *conn,
 					fstore.access.fp = NULL;
 				}
 			}
+#endif /* NO_FILESYSTEMS */
 
 			if ((field_storage & MG_FORM_FIELD_STORAGE_ABORT)
 			    == MG_FORM_FIELD_STORAGE_ABORT) {
@@ -976,6 +1056,5 @@ mg_handle_form_request(struct mg_connection *conn,
 	/* Unknown Content-Type */
 	return -1;
 }
-
 
 /* End of handle_form.inl */

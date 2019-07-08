@@ -35,7 +35,7 @@
 
 #include "sph_keccak.h"
 
-#ifdef __cplusplus
+#if defined __cplusplus
 extern "C"{
 #endif
 
@@ -84,7 +84,7 @@ extern "C"{
  * -- unroll 8 rounds on "big" machine, 2 rounds on "small" machines
  */
 
-#if SPH_SMALL_FOOTPRINT && !defined SPH_SMALL_FOOTPRINT_KECCAK
+#if defined SPH_SMALL_FOOTPRINT && !defined SPH_SMALL_FOOTPRINT_KECCAK
 #define SPH_SMALL_FOOTPRINT_KECCAK   1
 #endif
 
@@ -92,23 +92,23 @@ extern "C"{
  * By default, we select the 64-bit implementation if a 64-bit type
  * is available, unless a 32-bit x86 is detected.
  */
-#if !defined SPH_KECCAK_64 && SPH_64 \
-	&& !(defined __i386__ || SPH_I386_GCC || SPH_I386_MSVC)
+#if !defined SPH_KECCAK_64 && defined SPH_64 \
+	&& !(defined __i386__ || defined SPH_I386_GCC || defined SPH_I386_MSVC)
 #define SPH_KECCAK_64   1
 #endif
 
 /*
  * If using a 32-bit implementation, we prefer to interleave.
  */
-#if !SPH_KECCAK_64 && !defined SPH_KECCAK_INTERLEAVE
+#if !defined SPH_KECCAK_64 && !defined SPH_KECCAK_INTERLEAVE
 #define SPH_KECCAK_INTERLEAVE   1
 #endif
 
 /*
  * Unroll 8 rounds on big systems, 2 rounds on small systems.
  */
-#ifndef SPH_KECCAK_UNROLL
-#if SPH_SMALL_FOOTPRINT_KECCAK
+#if !defined SPH_KECCAK_UNROLL
+#if defined SPH_SMALL_FOOTPRINT_KECCAK
 #define SPH_KECCAK_UNROLL   2
 #else
 #define SPH_KECCAK_UNROLL   8
@@ -119,15 +119,16 @@ extern "C"{
  * We do not want to copy the state to local variables on x86 (32-bit
  * and 64-bit alike).
  */
-#ifndef SPH_KECCAK_NOCOPY
-#if defined __i386__ || defined __x86_64 || SPH_I386_MSVC || SPH_I386_GCC
+#if !defined SPH_KECCAK_NOCOPY
+#if defined __i386__ || defined __x86_64 || defined SPH_I386_MSVC \
+  || defined SPH_I386_GCC
 #define SPH_KECCAK_NOCOPY   1
 #else
 #define SPH_KECCAK_NOCOPY   0
 #endif
 #endif
 
-#if SPH_KECCAK_64
+#if defined SPH_KECCAK_64
 
 static const sph_u64 RC[] = {
 	SPH_C64(0x0000000000000001), SPH_C64(0x0000000000008082),
@@ -144,7 +145,7 @@ static const sph_u64 RC[] = {
 	SPH_C64(0x0000000080000001), SPH_C64(0x8000000080008008)
 };
 
-#if SPH_KECCAK_NOCOPY
+#if defined SPH_KECCAK_NOCOPY
 
 #define a00   (kc->u.wide[ 0])
 #define a10   (kc->u.wide[ 1])
@@ -365,7 +366,7 @@ static const sph_u64 RC[] = {
 static const struct {
 	sph_u32 high, low;
 } RC[] = {
-#if SPH_KECCAK_INTERLEAVE
+#if defined SPH_KECCAK_INTERLEAVE
 	{ SPH_C32(0x00000000), SPH_C32(0x00000001) },
 	{ SPH_C32(0x00000089), SPH_C32(0x00000000) },
 	{ SPH_C32(0x8000008B), SPH_C32(0x00000000) },
@@ -418,7 +419,7 @@ static const struct {
 #endif
 };
 
-#if SPH_KECCAK_INTERLEAVE
+#if defined SPH_KECCAK_INTERLEAVE
 
 #define INTERLEAVE(xl, xh)   do { \
 		sph_u32 l, h, t; \
@@ -459,7 +460,7 @@ static const struct {
 
 #endif
 
-#if SPH_KECCAK_NOCOPY
+#if defined SPH_KECCAK_NOCOPY
 
 #define a00l   (kc->u.narrow[2 *  0 + 0])
 #define a00h   (kc->u.narrow[2 *  0 + 1])
@@ -763,7 +764,7 @@ static const struct {
 #define NOT64(d, s)      (d ## l = SPH_T32(~s ## l), d ## h = SPH_T32(~s ## h))
 #define ROL64(d, v, n)   ROL64_ ## n(d, v)
 
-#if SPH_KECCAK_INTERLEAVE
+#if defined SPH_KECCAK_INTERLEAVE
 
 #define ROL64_odd1(d, v)   do { \
 		sph_u32 tmp; \
@@ -1523,7 +1524,7 @@ keccak_init(sph_keccak_context * __restrict kc, unsigned out_size)
 {
 	int i;
 
-#if SPH_KECCAK_64
+#if defined SPH_KECCAK_64
 	for (i = 0; i < 25; i ++)
 		kc->u.wide[i] = 0;
 	/*
@@ -1598,7 +1599,7 @@ keccak_core(sph_keccak_context * __restrict kc, const void * __restrict data, si
 	kc->ptr = ptr;
 }
 
-#if SPH_KECCAK_64
+#if defined SPH_KECCAK_64
 
 #define DEFCLOSE(d, lim) \
 	static void keccak_close ## d( \
@@ -1815,6 +1816,6 @@ sph_keccak512_addbits_and_close(void * __restrict cc, unsigned ub, unsigned n, v
 }
 
 
-#ifdef __cplusplus
+#if defined __cplusplus
 }
 #endif

@@ -1,9 +1,20 @@
+/*
+- C++ Big Integer library
+  https://mattmccutchen.net/bigint/
+
+Original license statement:
+
+  I, Matt McCutchen, the sole author of the original Big Integer
+  Library, waive my copyright to it, placing it in the public domain.
+  The library comes with absolutely no warranty.
+*/
+
 #ifndef BIGINTEGERUTILS_H
 #define BIGINTEGERUTILS_H
 
 #include "BigUnsigned.hh"
 #include <string>
-#include <iostream>
+#include <iosfwd>
 
 /* This file provides:
  * - Convenient std::string <-> BigUnsigned/BigInteger conversion routines

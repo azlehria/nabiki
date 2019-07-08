@@ -1,85 +1,160 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
+    <ProjectConfiguration Include="Console Debug|x64">
+      <Configuration>Console Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
+    <ProjectConfiguration Include="GUI Debug|x64">
+      <Configuration>GUI Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="GUI Release|x64">
+      <Configuration>GUI Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Console Release|x64">
+      <Configuration>Console Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C1461F5A-68A1-411E-A1E7-B7115F1193BA}</ProjectGuid>
     <RootNamespace>_nabiki</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>nabiki</ProjectName>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\..\..\..\..\VC\Auxiliary\Build\14.11\Microsoft.VCToolsVersion.14.11.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'" Label="Configuration">
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'" Label="Configuration">
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'" Label="Configuration">
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>PGOptimize</WholeProgramOptimization>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'" Label="Configuration">
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>PGOptimize</WholeProgramOptimization>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <CUDA_VER Condition="Exists('$(VCTargetsPath)\BuildCustomizations\CUDA 10.1.props')">10.1</CUDA_VER>
+    <CUDA_VER Condition="Exists('$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.props')">10.0</CUDA_VER>
+    <CUDA_VER Condition="Exists('$(VCTargetsPath)\BuildCustomizations\CUDA 9.2.props')">9.2</CUDA_VER>
+    <CUDA_VER Condition="Exists('$(VCTargetsPath)\BuildCustomizations\CUDA 9.1.props')">9.1</CUDA_VER>
+    <CUDA_VER Condition="Exists('$(VCTargetsPath)\BuildCustomizations\CUDA 9.0.props')">9.0</CUDA_VER>
+  </PropertyGroup>
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 9.1.props" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA $(CUDA_VER).props" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">
     <EmbedManifest>true</EmbedManifest>
+    <OutDir>$(SolutionDir)debug\</OutDir>
+    <IntDir>debug\intermediate\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'">
+    <EmbedManifest>true</EmbedManifest>
+    <IntDir>debug\intermediate\</IntDir>
+    <OutDir>$(SolutionDir)debug\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">
     <EmbedManifest>true</EmbedManifest>
     <OutDir>$(SolutionDir)build\</OutDir>
-    <IntDir>build\</IntDir>
+    <IntDir>build\intermediate\</IntDir>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">
+    <EmbedManifest>true</EmbedManifest>
+    <IntDir>build\intermediate\</IntDir>
+    <OutDir>$(SolutionDir)build\</OutDir>
+    <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <ExecutablePath>$(VC_ExecutablePath_x64);$(WindowsSDK_ExecutablePath_x64);$(VS_ExecutablePath);$(MSBuild_ExecutablePath);$(FxCopDir);$(PATH)</ExecutablePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>NO_SSL;NO_CACHING;MAX_WORKER_THREADS=2;CURL_NO_OLDIES;SPH_KECCAK_64=1;SPH_KECCAK_UNROLL=4;SPH_KECCAK_NOCOPY;_CRT_SECURE_NO_WARNINGS;JSON_STRIP_COMMENTS;CURL_STATICLIB;WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);..\deps\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\deps\include;%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <WarningLevel>Level4</WarningLevel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>OpenCL.lib;libcurl_a_debug.lib;nvml.lib;cudart_static.lib;crypt32.lib;wldap32.lib;Normaliz.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libcurl_a_debug.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);..\deps\lib</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
-      <DelayLoadDLLs>nvml.dll</DelayLoadDLLs>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_70,sm_70;compute_61,sm_61;compute_52,sm_52;compute_50,sm_50;compute_35,sm_35;compute_30,sm_30</CodeGeneration>
+      <CodeGeneration>compute_75,sm_75;compute_70,sm_70;compute_61,sm_61;compute_52,sm_52;compute_50,sm_50;compute_35,sm_35;compute_30,sm_30</CodeGeneration>
       <Warning>W4</Warning>
       <PtxAsOptionV>true</PtxAsOptionV>
-      <AdditionalCompilerOptions>-Fd$(IntDir)cudaVC$(PlatformToolsetVersion).pdb</AdditionalCompilerOptions>
       <GPUDebugInfo>false</GPUDebugInfo>
+      <HostDebugInfo>true</HostDebugInfo>
     </CudaCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
-      <Optimization>Full</Optimization>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>GUI;NO_SSL;NO_CACHING;MAX_WORKER_THREADS=2;CURL_NO_OLDIES;SPH_KECCAK_64=1;SPH_KECCAK_UNROLL=4;SPH_KECCAK_NOCOPY;_CRT_SECURE_NO_WARNINGS;JSON_STRIP_COMMENTS;CURL_STATICLIB;WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\deps\include;%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>libcurl_a_debug.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);..\deps\lib</AdditionalLibraryDirectories>
+      <IgnoreSpecificDefaultLibraries>
+      </IgnoreSpecificDefaultLibraries>
+    </Link>
+    <CudaCompile>
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>compute_75,sm_75;compute_70,sm_70;compute_61,sm_61;compute_52,sm_52;compute_50,sm_50;compute_35,sm_35;compute_30,sm_30</CodeGeneration>
+      <Warning>W4</Warning>
+      <PtxAsOptionV>true</PtxAsOptionV>
+      <GPUDebugInfo>false</GPUDebugInfo>
+      <HostDebugInfo>true</HostDebugInfo>
+    </CudaCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NO_SSL;NO_CACHING;MAX_WORKER_THREADS=2;CURL_NO_OLDIES;SPH_KECCAK_64=1;SPH_KECCAK_UNROLL=4;SPH_KECCAK_NOCOPY;_CRT_SECURE_NO_WARNINGS;JSON_STRIP_COMMENTS;CURL_STATICLIB;WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -89,23 +164,24 @@
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);..\deps\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\deps\include;%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <EnableEnhancedInstructionSet />
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <DisableSpecificWarnings>4061;4514;4571;4623;4625;4626;4710;4711;4820;4946;5026;5027;5045</DisableSpecificWarnings>
+      <AdditionalOptions>/experimental:external /external:anglebrackets /external:W0 /external:templates- %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>OpenCL.lib;libcurl_a.lib;nvml.lib;cudart_static.lib;crypt32.lib;wldap32.lib;Normaliz.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libcurl_a.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);..\deps\lib</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <DelayLoadDLLs>nvml.dll</DelayLoadDLLs>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
     </Link>
@@ -115,43 +191,128 @@
     </PostBuildEvent>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_70,sm_70;compute_61,sm_61;compute_52,sm_52;compute_50,sm_50;compute_35,sm_35;compute_30,sm_30</CodeGeneration>
+      <CodeGeneration>compute_75,sm_75;compute_70,sm_70;compute_61,sm_61;compute_52,sm_52;compute_50,sm_50;compute_35,sm_35;compute_30,sm_30</CodeGeneration>
       <FastMath>true</FastMath>
-      <Optimization>O3</Optimization>
       <Warning>W4</Warning>
       <PtxAsOptionV>true</PtxAsOptionV>
-      <AdditionalCompilerOptions>-Fd$(IntDir)cudaVC$(PlatformToolsetVersion).pdb</AdditionalCompilerOptions>
+      <Defines>CUDA_NDEBUG</Defines>
+      <!--AdditionalCompilerOptions>-Fd$(IntDir)cudaVC$(PlatformToolsetVersion).pdb</AdditionalCompilerOptions-->
     </CudaCompile>
     <Manifest>
       <AdditionalManifestFiles>version.manifest</AdditionalManifestFiles>
     </Manifest>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <CudaCompile Include="cudasolver.cu" />
-  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>GUI;NO_SSL;NO_CACHING;MAX_WORKER_THREADS=2;CURL_NO_OLDIES;SPH_KECCAK_64=1;SPH_KECCAK_UNROLL=4;SPH_KECCAK_NOCOPY;_CRT_SECURE_NO_WARNINGS;JSON_STRIP_COMMENTS;CURL_STATICLIB;WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <StringPooling>true</StringPooling>
+      <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>..\deps\include;%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DisableSpecificWarnings>4061;4514;4571;4623;4625;4626;4710;4711;4820;4946;5026;5027;5045</DisableSpecificWarnings>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AdditionalOptions>/experimental:external /external:anglebrackets /external:W0 /external:templates- %(AdditionalOptions)</AdditionalOptions>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <FloatingPointModel>Fast</FloatingPointModel>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>libcurl_a.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);..\deps\lib</AdditionalLibraryDirectories>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
+      <ProfileGuidedDatabase>$(OutDir)$(TargetName)GUI.pgd</ProfileGuidedDatabase>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <CudaCompile>
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>compute_75,sm_75;compute_70,sm_70;compute_61,sm_61;compute_52,sm_52;compute_50,sm_50;compute_35,sm_35;compute_30,sm_30</CodeGeneration>
+      <FastMath>true</FastMath>
+      <Warning>W4</Warning>
+      <PtxAsOptionV>true</PtxAsOptionV>
+    </CudaCompile>
+    <Manifest>
+      <AdditionalManifestFiles>version.manifest</AdditionalManifestFiles>
+    </Manifest>
+    <PreLinkEvent />
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BigInt\BigIntegerUtils.cpp" />
     <ClCompile Include="BigInt\BigUnsigned.cpp" />
     <ClCompile Include="BigInt\BigUnsignedInABase.cpp" />
-    <ClCompile Include="CivetWeb\civetweb.c" />
+    <ClCompile Include="CivetWeb\civetweb.c">
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">4061;4514;4548;4571;4625;4626;4710;4711;4820;5027;5045</DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">4061;4514;4548;4571;4625;4626;4710;4711;4820;5027;5045</DisableSpecificWarnings>
+    </ClCompile>
     <ClCompile Include="clsolver.cpp" />
     <ClCompile Include="commo.cpp" />
     <ClCompile Include="cpusolver.cpp" />
     <ClCompile Include="cudasolver.cpp" />
-    <ClCompile Include="hybridminer.cpp" />
-    <ClCompile Include="keccak.c">
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-      </DisableSpecificWarnings>
+    <ClCompile Include="devicepanel.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="devicetelemetry.cpp" />
+    <ClCompile Include="events.cpp" />
+    <ClCompile Include="graphical.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="minercore.cpp" />
+    <ClCompile Include="keccak.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="miner_state.cpp" />
-    <None Include="posix.cpp" />
+    <ClCompile Include="miningstate.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="posix.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="telemetry.cpp" />
-    <ClCompile Include="text.cpp" />
+    <ClCompile Include="text.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="log.cpp" />
+    <ClCompile Include="threadpool.cpp" />
+    <ClCompile Include="utils.cpp" />
     <ClCompile Include="win32.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CivetWeb\civetweb.h" />
+    <ClInclude Include="devicepanel.h" />
+    <ClInclude Include="devicetelemetry.h" />
+    <ClInclude Include="DynamicLibs\dlcuda.h" />
+    <ClInclude Include="DynamicLibs\dlnvml.h" />
+    <ClInclude Include="DynamicLibs\dlnvrtc.h" />
+    <ClInclude Include="DynamicLibs\dlopencl.h" />
+    <ClInclude Include="DynamicLibs\libhelper.hpp" />
+    <ClInclude Include="events.h" />
+    <ClInclude Include="log.h" />
+    <ClInclude Include="miningstate.h" />
     <ClInclude Include="platforms.h" />
     <ClInclude Include="isolver.h" />
     <ClInclude Include="BigInt\BigIntegerLibrary.hh" />
@@ -163,14 +324,20 @@
     <ClInclude Include="commo.h" />
     <ClInclude Include="cpusolver.h" />
     <ClInclude Include="cudasolver.h" />
-    <ClInclude Include="hybridminer.h" />
-    <ClInclude Include="json.hpp" />
+    <ClInclude Include="minercore.h" />
     <ClInclude Include="miner_state.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="sph_keccak.h" />
     <ClInclude Include="sph_types.h" />
     <ClInclude Include="telemetry.h" />
-    <ClInclude Include="text.h" />
+    <ClInclude Include="threadpool.h" />
+    <ClInclude Include="ui.h" />
     <ClInclude Include="types.h" />
+    <ClInclude Include="utils.h" />
+    <ClInclude Include="winapi_helpers.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Console Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
@@ -179,20 +346,28 @@
     <None Include="CivetWeb\sha1.inl" />
     <None Include="clsolver.cl" />
     <Text Include="LICENSE">
-      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Console Release|x64'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">true</DeploymentContent>
       <FileType>Document</FileType>
     </Text>
     <None Include="Makefile" />
     <None Include="nabiki.json" />
   </ItemGroup>
   <ItemGroup>
-    <Manifest Include="version.manifest" />
+    <Manifest Include="version.manifest">
+      <SubType>Designer</SubType>
+    </Manifest>
   </ItemGroup>
   <ItemGroup>
     <Text Include="README.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="gui.rc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GUI Release|x64'">true</ExcludedFromBuild>
+    </ResourceCompile>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 9.1.targets" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA $(CUDA_VER).targets" />
   </ImportGroup>
 </Project>

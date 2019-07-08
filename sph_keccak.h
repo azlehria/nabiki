@@ -33,10 +33,10 @@
  * @author   Thomas Pornin <thomas.pornin@cryptolog.com>
  */
 
-#ifndef SPH_KECCAK_H__
+#if !defined SPH_KECCAK_H__
 #define SPH_KECCAK_H__
 
-#ifdef __cplusplus
+#if defined __cplusplus
 extern "C"{
 #endif
 
@@ -74,11 +74,11 @@ extern "C"{
  * <code>memcpy()</code>).
  */
 typedef struct {
-#ifndef DOXYGEN_IGNORE
+#if !defined DOXYGEN_IGNORE
 	unsigned char buf[144];    /* first field, for alignment */
 	size_t ptr, lim;
 	union {
-#if SPH_64
+#if defined SPH_64
 		sph_u64 wide[25];
 #endif
 		sph_u32 narrow[50];
@@ -286,7 +286,7 @@ void sph_keccak512_close(void * __restrict cc, void * __restrict dst);
 void sph_keccak512_addbits_and_close(
 	void * __restrict cc, unsigned ub, unsigned n, void * __restrict dst);
 
-#ifdef __cplusplus
+#if defined __cplusplus
 }
 #endif
 

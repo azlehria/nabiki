@@ -15,7 +15,6 @@
       <Filter>Network</Filter>
     </ClCompile>
     <ClCompile Include="miner_state.cpp" />
-    <ClCompile Include="hybridminer.cpp" />
     <ClCompile Include="BigInt\BigIntegerUtils.cpp">
       <Filter>Libs\BigInt</Filter>
     </ClCompile>
@@ -40,19 +39,35 @@
     <ClCompile Include="text.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="graphical.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="events.cpp" />
+    <ClCompile Include="devicepanel.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="devicetelemetry.cpp">
+      <Filter>Mining Backend</Filter>
+    </ClCompile>
+    <ClCompile Include="log.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="posix.cpp">
+      <Filter>Platforms\Excluded POSIX</Filter>
+    </ClCompile>
+    <ClCompile Include="minercore.cpp" />
+    <ClCompile Include="utils.cpp" />
+    <ClCompile Include="miningstate.cpp">
+      <Filter>Mining Backend</Filter>
+    </ClCompile>
+    <ClCompile Include="threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="hybridminer.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="miner_state.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="types.h">
       <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="json.hpp">
-      <Filter>Libs</Filter>
     </ClInclude>
     <ClInclude Include="BigInt\BigUnsignedInABase.hh">
       <Filter>Libs\BigInt</Filter>
@@ -99,9 +114,48 @@
     <ClInclude Include="isolver.h">
       <Filter>Mining Backend</Filter>
     </ClInclude>
-    <ClInclude Include="text.h">
+    <ClInclude Include="ui.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="events.h" />
+    <ClInclude Include="winapi_helpers.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="devicepanel.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="devicetelemetry.h">
+      <Filter>Mining Backend</Filter>
+    </ClInclude>
+    <ClInclude Include="log.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="minercore.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="miningstate.h">
+      <Filter>Mining Backend</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.h" />
+    <ClInclude Include="DynamicLibs\libhelper.hpp">
+      <Filter>Libs\DynamicLibs</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicLibs\dlnvml.h">
+      <Filter>Libs\DynamicLibs</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicLibs\dlopencl.h">
+      <Filter>Libs\DynamicLibs</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicLibs\dlcuda.h">
+      <Filter>Libs\DynamicLibs</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicLibs\dlnvrtc.h">
+      <Filter>Libs\DynamicLibs</Filter>
+    </ClInclude>
+    <ClInclude Include="threadpool.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Libs">
@@ -143,14 +197,12 @@
     <Filter Include="UI">
       <UniqueIdentifier>{47fdbcd8-9181-4e91-b2e4-cdceaa9f488e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Libs\DynamicLibs">
+      <UniqueIdentifier>{0155b8c7-1c96-4dac-97c5-f08ad41a86c6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="version.manifest" />
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="cudasolver.cu">
-      <Filter>Mining Backend\CUDA</Filter>
-    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="clsolver.cl">
@@ -169,9 +221,6 @@
     <None Include="Makefile">
       <Filter>Platforms\Excluded POSIX</Filter>
     </None>
-    <None Include="posix.cpp">
-      <Filter>Platforms\Excluded POSIX</Filter>
-    </None>
     <None Include="nabiki.json">
       <Filter>Distributable Files</Filter>
     </None>
@@ -183,5 +232,10 @@
     <Text Include="README.txt">
       <Filter>Distributable Files</Filter>
     </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="gui.rc">
+      <Filter>UI</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

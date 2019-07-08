@@ -1,3 +1,14 @@
+/*
+- C++ Big Integer library
+  https://mattmccutchen.net/bigint/
+
+Original license statement:
+
+  I, Matt McCutchen, the sole author of the original Big Integer
+  Library, waive my copyright to it, placing it in the public domain.
+  The library comes with absolutely no warranty.
+*/
+
 #include "BigUnsignedInABase.hh"
 
 BigUnsignedInABase::BigUnsignedInABase(const Digit *d, Index l, Base base)
@@ -36,9 +47,9 @@ BigUnsignedInABase::BigUnsignedInABase(const BigUnsigned &x, Base base) {
 	this->base = base;
 
 	// Get an upper bound on how much space we need
-	int64_t maxBitLenOfX = x.getLength() * BigUnsigned::N;
-	int64_t minBitsPerDigit = bitLen(base) - 1;
-	int64_t maxDigitLenOfX = ceilingDiv(maxBitLenOfX, minBitsPerDigit);
+	uint64_t maxBitLenOfX = x.getLength() * BigUnsigned::N;
+	uint64_t minBitsPerDigit = bitLen(base) - 1;
+	uint64_t maxDigitLenOfX = ceilingDiv(maxBitLenOfX, minBitsPerDigit);
 	len = maxDigitLenOfX; // Another change to comply with `staying in bounds'.
 	allocate(len); // Get the space
 
@@ -86,13 +97,13 @@ BigUnsignedInABase::BigUnsignedInABase(const std::string_view &s, Base base) {
 	Index digitNum, symbolNumInString;
 	for (digitNum = 0; digitNum < len; digitNum++) {
 		symbolNumInString = len - 1 - digitNum;
-		char theSymbol = s[symbolNumInString];
+		int8_t theSymbol(s[symbolNumInString]);
 		if (theSymbol >= '0' && theSymbol <= '9')
-			blk[digitNum] = theSymbol - '0';
+			blk[digitNum] = uint8_t(theSymbol - '0');
 		else if (theSymbol >= 'A' && theSymbol <= 'Z')
-			blk[digitNum] = theSymbol - 'A' + 10;
+			blk[digitNum] = uint8_t(theSymbol - 'A' + 10);
 		else if (theSymbol >= 'a' && theSymbol <= 'z')
-			blk[digitNum] = theSymbol - 'a' + 10;
+			blk[digitNum] = uint8_t( theSymbol - 'a' + 10);
 		else
 			throw "BigUnsignedInABase(std::string, Base): Bad symbol in input.  Only 0-9, A-Z, a-z are accepted.";
 
@@ -108,18 +119,15 @@ BigUnsignedInABase::operator std::string() const {
 	if (len == 0)
 		return std::string("0");
 	// Some compilers don't have push_back, so use a char * buffer instead.
-	char *s = new char[len + 1];
-	s[len] = '\0';
+  std::string s;
 	Index digitNum, symbolNumInString;
 	for (symbolNumInString = 0; symbolNumInString < len; symbolNumInString++) {
 		digitNum = len - 1 - symbolNumInString;
 		Digit theDigit = blk[digitNum];
 		if (theDigit < 10)
-			s[symbolNumInString] = char('0' + theDigit);
+      s.push_back(char('0' + theDigit));
 		else
-			s[symbolNumInString] = char('A' + theDigit - 10);
+      s.push_back(char('A' + theDigit - 10));
 	}
-	std::string s2(s);
-	delete [] s;
-	return s2;
+	return s;
 }

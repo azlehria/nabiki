@@ -1,3 +1,14 @@
+/*
+- C++ Big Integer library
+  https://mattmccutchen.net/bigint/
+
+Original license statement:
+
+  I, Matt McCutchen, the sole author of the original Big Integer
+  Library, waive my copyright to it, placing it in the public domain.
+  The library comes with absolutely no warranty.
+*/
+
 #ifndef BIGUNSIGNEDINABASE_H
 #define BIGUNSIGNEDINABASE_H
 
@@ -107,7 +118,7 @@ public:
 
 	/* Returns the requested digit, or 0 if it is beyond the length (as if
 	 * the number had 0s infinitely to the left). */
-	Digit getDigit(Index i) const { return i >= len ? 0 : blk[i]; }
+	Digit getDigit(Index i) const { return i >= len ? Digit(0) : blk[i]; }
 
 	// The number is zero if and only if the canonical length is zero.
 	bool isZero() const { return NumberlikeArray<Digit>::isEmpty(); }

@@ -1,13 +1,37 @@
+/*
+ * Copyright 2018 Azlehria
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+#include "minercore.h"
 #include "miner_state.h"
+#include "log.h"
 #include "platforms.h"
-#include "hybridminer.h"
 #include "commo.h"
 #include "isolver.h"
 #include "cpusolver.h"
 #include "cudasolver.h"
 #include "clsolver.h"
 #include "telemetry.h"
-#include "text.h"
+#include "ui.h"
 
 #include <cstdlib>
 #include <sstream>
@@ -23,13 +47,12 @@ using namespace std::chrono;
 
 namespace
 {
-  static std::vector<std::unique_ptr<ISolver>> m_solvers;
+  static std::vector<std::shared_ptr<ISolver>> m_solvers;
 
   static uint_fast16_t m_solvers_cuda{ 0u };
   static uint_fast16_t m_solvers_cpu{ 0u };
   static uint_fast16_t m_solvers_cl{ 0u };
   static steady_clock::time_point m_launch_time;
-  static std::atomic<bool> m_stop{ false };
 
   static auto printStartMessage() -> void
   {
@@ -58,47 +81,79 @@ namespace
       ss_out << m_solvers_cpu << " CPU core"sv << (m_solvers_cpu > 1 ? "s"sv : ""sv);
     }
 
-    ss_out << ".\n"sv;
+    ss_out << "."sv;
 
-    MinerState::pushLog( ss_out.str() );
+    Log::pushLog( ss_out.str() );
   }
 
-  static auto startMining() -> void
+  static auto createMiners() -> void
   {
-    while( !MinerState::isReady() )
-    {
-      std::this_thread::sleep_for( 1ms );
-    }
+    MinerState::waitUntilReady();
 
     for( auto const&[ device, intensity ] : MinerState::getCudaDevices() )
     {
-      m_solvers.push_back( std::make_unique<CUDASolver>( device, intensity ) );
+      m_solvers.push_back( std::make_shared<CUDASolver>( device, intensity ) );
       ++m_solvers_cuda;
     }
 
     for( m_solvers_cpu = 0; m_solvers_cpu < MinerState::getCpuThreads(); ++m_solvers_cpu )
     {
-      m_solvers.push_back( std::make_unique<CPUSolver>() );
+      m_solvers.push_back( std::make_shared<CPUSolver>() );
     }
 
-    //std::vector<cl::Platform> platforms;
-    //cl_int error = cl::Platform::get( &platforms );
-    //for( auto const&[ pName, pDevices ] : MinerState::getClDevices() )
-    //{
-    //  std::vector<cl::Device> devices;
-    //  error = platforms[1].getDevices( CL_DEVICE_TYPE_ALL, &devices );
+    Opencl cl{};
+    if( !cl.Flush ) { return; }
 
-    //  m_solvers.push_back( std::make_unique<CLSolver>( devices[0], 17 ) );
-    //  ++m_solvers_cl;
-    //}
+    cl_int error{ 0 };
+    std::vector<cl_platform_id> platforms;
+    {
+      cl_uint plat_count{ 0 };
+      error = cl.GetPlatformIDs( 0u, nullptr, &plat_count );
+      platforms.resize( plat_count );
+      error = cl.GetPlatformIDs( plat_count, platforms.data(), nullptr );
+    }
+    if( error != CL_SUCCESS )
+    {
+      Log::pushLog( "OpenCL error: " + std::to_string( error ) );
+    }
+    for( auto const&[ pName, pDevices ] : MinerState::getClDevices() )
+    {
+      for( auto const& plat : platforms )
+      {
+        std::string plat_name;
+        {
+          size_t name_size{ 0 };
+          cl.GetPlatformInfo( plat, CL_PLATFORM_NAME, 0u, nullptr, &name_size );
+          char* name{ new char[name_size] };
+          cl.GetPlatformInfo( plat, CL_PLATFORM_NAME, name_size, name, nullptr );
+          plat_name = name;
+          delete[] name;
+        }
+        if( (pName == "intel"s && plat_name.find( "Intel"s ) == std::string::npos)
+          || (pName == "nvidia"s && plat_name.find( "NVIDIA"s ) == std::string::npos)
+          || (pName == "amd"s && plat_name.find( "AMD"s ) == std::string::npos) ) { continue; }
+
+        cl_uint device_count{ 0 };
+        cl.GetDeviceIDs( plat, CL_DEVICE_TYPE_ALL, 0u, nullptr, &device_count );
+        auto devices{ new cl_device_id[device_count] };
+        cl.GetDeviceIDs( plat, CL_DEVICE_TYPE_ALL, device_count, devices, nullptr );
+
+        for( auto const&[ device, intensity ] : pDevices )
+        {
+          m_solvers.push_back( std::make_shared<CLSolver>( devices[size_t(device)], intensity ) );
+          ++m_solvers_cl;
+        }
+        delete[] devices;
+      }
+    }
   }
 }
 
-namespace HybridMiner
+namespace MinerCore
 {
   auto updateTarget() -> void
   {
-    for( auto&& solver : m_solvers )
+    for( auto const& solver : m_solvers )
     {
       solver->updateTarget();
     }
@@ -106,51 +161,53 @@ namespace HybridMiner
 
   auto updateMessage() -> void
   {
-    for( auto&& solver : m_solvers )
+    for( auto const& solver : m_solvers )
     {
       solver->updateMessage();
     }
   }
 
-  // This is the "main" thread of execution
-  auto run() -> void
+  auto run() -> int32_t
   {
     m_launch_time = steady_clock::now();
 
-    SetBasicState();
+    InitBaseState();
+
+    UI::Init();
 
     MinerState::Init();
 
     Commo::Init();
 
-    startMining();
+    createMiners();
+
+    std::thread uiThread{ UI::Run };
+
+    for( auto const& solver : m_solvers )
+    {
+      solver->startFinding();
+    }
 
     printStartMessage();
 
     Telemetry::Init();
 
-    UI::Text::Init();
+    if( uiThread.joinable() )
+      uiThread.join();
 
-    do {
-      std::this_thread::sleep_for( 1ms );
-    } while( !m_stop.load( std::memory_order_acquire ) );
+    CleanupBaseState();
 
-    UI::Text::Cleanup();
+    return 0;
+  }
 
-    std::cerr << MinerState::getPrintableTimeStamp() << "Process exiting... stopping miner\n"sv;
+  auto stop() -> void
+  {
+    UI::Stop();
 
-    if( !UseOldUI() )
-    {
-      std::cerr << "\x1b[s\x1b[?25h\x1b[r\x1b[u"sv;
-    }
-
-    for( auto& solver : m_solvers )
+    for( auto const& solver : m_solvers )
     {
       solver->stopFinding();
     }
-
-    if( m_solvers_cuda )
-      nvmlShutdown();
 
     m_solvers_cuda = m_solvers_cpu = 0u;
 
@@ -159,41 +216,27 @@ namespace HybridMiner
     Commo::Cleanup();
   }
 
-  auto stop() -> void
-  {
-    m_stop.store( true, std::memory_order_release );
-  }
-
   auto getHashrates() -> std::vector<double> const
   {
     std::vector<double> temp;
-    for( auto&& solver : m_solvers )
+    for( auto const& solver : m_solvers )
     {
       temp.emplace_back( solver->getHashrate() );
     }
     return temp;
   }
 
-  auto getTemperatures() -> std::vector<uint32_t> const
+  auto getDevice( size_t devIndex ) -> ISolver*
   {
-    std::vector<uint32_t> temp;
-    for( auto&& solver : m_solvers )
-    {
-      temp.emplace_back( solver->getTemperature() );
-    }
-    return temp;
+    return m_solvers[devIndex].get();
   }
 
-  auto getDeviceStates() -> std::vector<device_info_t> const
+  auto getDeviceReferences() -> std::vector<std::shared_ptr<ISolver>> const
   {
-    std::vector<device_info_t> ret;
-    for( auto&& solver : m_solvers )
+    std::vector<std::shared_ptr<ISolver>> ret;
+    for( auto solver : m_solvers )
     {
-      device_info_t temp{ solver->getDeviceState() };
-      if( !temp.name.empty() )
-      {
-        ret.emplace_back( temp );
-      }
+      ret.emplace_back( solver );
     }
     return ret;
   }
@@ -203,7 +246,7 @@ namespace HybridMiner
     return m_solvers_cuda + m_solvers_cl + m_solvers_cpu;
   }
 
-  auto getUptime() -> uint64_t const
+  auto getUptime() -> int64_t const
   {
     return duration_cast<seconds>( steady_clock::now() - m_launch_time ).count();
   }

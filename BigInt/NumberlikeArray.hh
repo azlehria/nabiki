@@ -1,3 +1,14 @@
+/*
+- C++ Big Integer library
+  https://mattmccutchen.net/bigint/
+
+Original license statement:
+
+  I, Matt McCutchen, the sole author of the original Big Integer
+  Library, waive my copyright to it, placing it in the public domain.
+  The library comes with absolutely no warranty.
+*/
+
 #ifndef NUMBERLIKEARRAY_H
 #define NUMBERLIKEARRAY_H
 

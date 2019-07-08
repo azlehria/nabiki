@@ -1,7 +1,35 @@
+/*
+ * Copyright 2018 Azlehria
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #include "miner_state.h"
+#include "log.h"
+#include "utils.h"
 #include "platforms.h"
-#include "hybridminer.h"
-#include "json.hpp"
+#include "minercore.h"
+#include "ui.h"
+#include "DynamicLibs/dlopencl.h"
+#include "DynamicLibs/dlcuda.h"
+#include <json.hpp>
 
 #include <ctime>
 #include <cctype>
@@ -18,68 +46,32 @@
 #include <string>
 #include <string_view>
 #include <algorithm>
-#include <cuda_runtime.h>
-#include <nvml.h>
-
-#ifdef __GNUC__
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wignored-attributes"
-#endif // __GNUC__
-#ifdef __APPLE__
-#  include <OpenCL/cl.hpp>
-#else
-#  include <CL/cl.hpp>
+#include <stdexcept>
+#include <condition_variable>
+#if defined _MSC_VER // GCC is not cooperative
+#  include <execution>
 #endif
-#ifdef __GNUC__
-#  pragma GCC diagnostic pop
-#endif // __GNUC__
 
-using namespace std::literals::string_literals;
-using namespace std::literals::string_view_literals;
+using namespace std::literals;
 using namespace std::chrono;
+using namespace Nabiki::Utils;
+using json = nlohmann::json;
 
 namespace
 {
-  static size_t constexpr UINT256_LENGTH{ 64u };
   static double constexpr DEFAULT_INTENSITY{ 23.0 };
-  static char constexpr ascii[256][3] = {
-    "00","01","02","03","04","05","06","07","08","09","0a","0b","0c","0d","0e","0f",
-    "10","11","12","13","14","15","16","17","18","19","1a","1b","1c","1d","1e","1f",
-    "20","21","22","23","24","25","26","27","28","29","2a","2b","2c","2d","2e","2f",
-    "30","31","32","33","34","35","36","37","38","39","3a","3b","3c","3d","3e","3f",
-    "40","41","42","43","44","45","46","47","48","49","4a","4b","4c","4d","4e","4f",
-    "50","51","52","53","54","55","56","57","58","59","5a","5b","5c","5d","5e","5f",
-    "60","61","62","63","64","65","66","67","68","69","6a","6b","6c","6d","6e","6f",
-    "70","71","72","73","74","75","76","77","78","79","7a","7b","7c","7d","7e","7f",
-    "80","81","82","83","84","85","86","87","88","89","8a","8b","8c","8d","8e","8f",
-    "90","91","92","93","94","95","96","97","98","99","9a","9b","9c","9d","9e","9f",
-    "a0","a1","a2","a3","a4","a5","a6","a7","a8","a9","aa","ab","ac","ad","ae","af",
-    "b0","b1","b2","b3","b4","b5","b6","b7","b8","b9","ba","bb","bc","bd","be","bf",
-    "c0","c1","c2","c3","c4","c5","c6","c7","c8","c9","ca","cb","cc","cd","ce","cf",
-    "d0","d1","d2","d3","d4","d5","d6","d7","d8","d9","da","db","dc","dd","de","df",
-    "e0","e1","e2","e3","e4","e5","e6","e7","e8","e9","ea","eb","ec","ed","ee","ef",
-    "f0","f1","f2","f3","f4","f5","f6","f7","f8","f9","fa","fb","fc","fd","fe","ff"
-  };
+  static std::array<std::pair<std::string_view, std::string_view>, 3> constexpr
+    opencl_platforms{ { { "amd"sv, "AMD"sv }, { "nvidia"sv, "NVIDIA"sv }, { "intel"sv, "Intel"sv } } };
 
-  static std::mutex m_solutions_mutex;
-  static std::queue<uint64_t> m_solutions_queue;
-  static hash_t m_solution;
-  static std::atomic<uint64_t> m_hash_count{ 0ull };
-  static std::atomic<uint64_t> m_hash_count_printable{ 0ull };
-  static message_t m_message;
-  static state_t m_midstate;
+  static message_t m_message{};
+  static state_t m_midstate{};
   static std::atomic<bool> m_midstate_ready{ false };
   static std::mutex m_midstate_mutex;
-  static hash_t m_challenge_old;
+  static hash_t m_challenge_old{};
   static std::mutex m_message_mutex;
   static std::atomic<bool> m_challenge_ready{ false };
   static std::atomic<bool> m_pool_address_ready{ false };
   static std::atomic<uint64_t> m_sol_count{ 0ull };
-  static std::mutex m_print_mutex;
-  static std::queue<std::string> m_log;
-  static std::mutex m_log_mutex;
-  static std::string m_challenge_printable;
-  static std::string m_address_printable;
   static std::atomic<uint64_t> m_target_num{ 0ull };
   static BigUnsigned m_target{ 0u };
   static BigUnsigned m_maximum_target{ 1u };
@@ -87,260 +79,292 @@ namespace
   static bool m_custom_diff{ false };
   static std::atomic<uint64_t> m_diff{ 1ull };
   static std::atomic<bool> m_diff_ready{ false };
-  static std::atomic<bool> m_new_solution{ false };
-  static std::string m_address;
+  static std::string m_address{};
   static std::mutex m_address_mutex;
-  static std::string m_pool_url;
+  static std::string m_pool_url{};
   static std::mutex m_pool_url_mutex;
-  static steady_clock::time_point m_start;
-  static steady_clock::time_point m_end;
-  static steady_clock::time_point m_round_start;
-  static device_list_t m_cuda_devices;
-  static device_map_t m_opencl_devices;
+  static std::mutex m_solutions_mutex;
+  static std::vector<std::string> m_solutions_queue{};
+  static hash_t m_solution{};
+  static std::atomic<uint64_t> m_hash_count{ 0ull };
+  static std::condition_variable m_is_ready;
+  static std::mutex m_is_ready_mutex;
+
+  static std::atomic<uint64_t> m_hash_count_printable{ 0ull };
+  static std::queue<std::string> m_log{};
+  static std::mutex m_log_mutex;
+  static steady_clock::time_point m_start{};
+  static steady_clock::time_point m_end{};
+  static steady_clock::time_point m_round_start{ steady_clock::now() };
+  static device_list_t m_cuda_devices{};
+  static device_map_t m_opencl_devices{};
   static uint32_t m_cpu_threads{ 0ul };
-  static std::string m_worker_name;
-  static std::string m_api_ports;
-  static std::string m_api_allowed;
-  static nlohmann::json m_json_config;
+  static std::string m_worker_name{};
+  static std::string m_api_ports{};
+  static std::string m_api_allowed{};
+  static json m_json_config{};
   static std::string m_token_name{ "0xBTC" };
   static bool m_submit_stale{ false };
   static bool m_debug{ false };
-
-  static auto fromAscii( uint8_t const& c ) -> uint8_t const
-  {
-    if( c >= '0' && c <= '9' )
-      return ( c - '0' );
-    if( c >= 'a' && c <= 'f' )
-      return ( c - 'a' + 10 );
-    if( c >= 'A' && c <= 'F' )
-      return ( c - 'A' + 10 );
-
-    throw std::runtime_error( "invalid character" );
-  }
-
-  static auto ascii_r( uint8_t const& a, uint8_t const& b ) -> uint8_t const
-  {
-    return fromAscii( a ) << 4 ^ fromAscii( b );
-  }
-
-  template<typename T>
-  static auto HexToBytes( std::string_view const& hex, T& bytes ) -> void
-  {
-    for( std::string_view::size_type i = 0, j = 0; i < hex.length(); i += 2, ++j )
-    {
-      bytes[j] = ascii_r( hex[i], hex[i + 1] );
-    }
-  }
 }
 
 // --------------------------------------------------------------------
 
-// make these available externally
-template auto MinerState::hexToBytes( std::string_view const& hex, message_t& bytes ) -> void;
-template auto MinerState::bytesToString( hash_t const& buffer )->std::string const;
-
 namespace MinerState
 {
+  template auto pushSolution( uint64_t const ) -> void;
+  template auto pushSolution( std::vector<uint64_t> const ) -> void;
+
   auto Init() -> void
   {
     std::ifstream in( "nabiki.json" );
     if( !in )
     {
       std::cerr << "Unable to open configuration file 'nabiki.json'.\n"sv;
-      std::exit( EXIT_FAILURE );
+      std::abort();
     }
 
     in >> m_json_config;
     in.close();
 
-    if( m_json_config.find( "address" ) == m_json_config.end() ||
-      ( m_json_config["address"].is_string() &&
-        m_json_config["address"].get<std::string>().length() != 42 ) )
+    json::iterator iter{ m_json_config.find( "address" ) };
+    if( iter == m_json_config.end() ||
+        ( iter->is_string() &&
+          iter->get<std::string>().length() != 42 ) )
     {
       std::cerr << "No valid wallet address set in configuration - how are you supposed to get paid?\n"sv;
-      std::exit( EXIT_FAILURE );
+      std::abort();
     }
-    if( m_json_config.find( "pool" ) == m_json_config.end() ||
-      ( m_json_config["pool"].is_string() &&
-        m_json_config["pool"].get<std::string>().length() < 15 ) )
+    setAddress( iter->get<std::string>() );
+
+    iter = m_json_config.find( "pool" );
+    if( iter == m_json_config.end() ||
+        ( iter->is_string() &&
+          iter->get<std::string>().length() < 15 ) )
     {
       std::cerr << "No pool address set in configuration - this isn't a solo miner!\n"sv;
-      std::exit( EXIT_FAILURE );
+      std::abort();
     }
-
-    setAddress( m_json_config["address"].get<std::string>() );
-    setPoolUrl( m_json_config["pool"].get<std::string>() );
+    setPoolUrl( iter->get<std::string>() );
 
     // this has to come before diff is set
-    if( m_json_config.find( "token" ) != m_json_config.end() &&
-        m_json_config["token"].is_string() &&
-        m_json_config["token"].get<std::string>().length() > 0u )
+    iter = m_json_config.find( "token" );
+    if( iter != m_json_config.end() &&
+        iter->is_string() &&
+        iter->get<std::string>().length() > 0u )
     {
-      setTokenName( m_json_config["token"].get<std::string>() );
+      setTokenName( iter->get<std::string>() );
     }
     else
     {
       setTokenName( "0xBitcoin"s );
     }
 
-    if( m_json_config.find( "customdiff" ) != m_json_config.end() &&
-        m_json_config["customdiff"].is_number_unsigned() &&
-        m_json_config["customdiff"].get<uint64_t>() > 0u )
+    iter = m_json_config.find( "customdiff" );
+    if( iter != m_json_config.end() &&
+        iter->is_number_unsigned() &&
+        iter->get<uint64_t>() > 0u )
     {
-      setCustomDiff( m_json_config["customdiff"].get<uint64_t>() );
+      setCustomDiff( iter->get<uint64_t>() );
     }
 
-    if( m_json_config.find( "submitstale" ) != m_json_config.end() &&
-        m_json_config["submitstale"].is_boolean() )
+    iter = m_json_config.find( "submitstale"s );
+    if( iter != m_json_config.end() &&
+        iter->is_boolean() )
     {
       setSubmitStale( m_json_config["submitstale"].get<bool>() );
     }
 
-    if( m_json_config.find( "debug" ) != m_json_config.end() &&
-        m_json_config["debug"].is_boolean() )
+    iter = m_json_config.find( "debug" );
+    if( iter != m_json_config.end() &&
+        iter->is_boolean() )
     {
       m_debug = m_json_config["debug"].get<bool>();
     }
 
-    int32_t device_count;
-    cudaGetDeviceCount( &device_count );
-
-    if( m_json_config.find( "cuda" ) != m_json_config.end() &&
-        m_json_config["cuda"].is_array() &&
-        m_json_config["cuda"].size() > 0u )
+    iter = m_json_config.find( "cuda" );
+    if( iter != m_json_config.end() &&
+        iter->is_array() &&
+        iter->size() > 0u )
     {
-      for( auto& device : m_json_config["cuda"] )
+      Cuda cu{};
+      if( !cu.Init || cu.Init( 0u ) ){ return; }
+
+      int32_t device_count;
+      cu.DeviceGetCount( &device_count );
+
+      json::const_iterator it_en, it_dev, it_int;
+      for( auto const& device : m_json_config["cuda"] )
       {
-        if( ( device.find( "enabled" ) != device.end() &&
-              device["enabled"].is_boolean() &&
-              device["enabled"].get<bool>() ) &&
-              ( device.find( "device" ) != device.end() &&
-                device["device"].is_number_integer() &&
-                device["device"].get<int32_t>() < device_count ) )
+        it_en = device.find( "enabled"s );
+        it_dev = device.find( "device"s );
+        it_int = device.find( "intensity"s );
+        if( ( it_en != device.end() &&
+              it_en->is_boolean() &&
+              it_en->get<bool>() ) &&
+              ( it_dev != device.end() &&
+                it_dev->is_number_integer() &&
+                it_dev->get<int32_t>() < device_count ) )
         {
-          m_cuda_devices.emplace_back( device["device"],
-            ( ( device.find( "intensity" ) != device.end() &&
-                device["intensity"].is_number_float() )
-              ? device["intensity"].get<double>()
+          m_cuda_devices.emplace_back( *it_dev,
+            ( ( it_int != device.end() &&
+                it_int->is_number() )
+              ? it_int->get<double>()
               : DEFAULT_INTENSITY ) );
         }
       }
     }
-    else
-    {
-      for( int_fast32_t i{ 0u }; i < device_count; ++i )
-      {
-        m_cuda_devices.emplace_back( i, DEFAULT_INTENSITY );
-      }
-    }
-    if( m_cuda_devices.size() > 0u )
-    {
-      nvmlInit();
-    }
 
-    if( m_json_config.find( "opencl" ) != m_json_config.end() &&
-        m_json_config["opencl"].is_object() &&
-        m_json_config["opencl"].size() > 0u )
+    iter = m_json_config.find( "opencl"s );
+    if( iter != m_json_config.end() &&
+        iter->is_object() &&
+        iter->size() > 0u )
     {
-      for( auto& platform : { "amd"s, "nvidia"s, "intel"s } )
+      Opencl cl{};
+      if( !cl.GetDeviceIDs ){ return; }
+
+      std::vector<cl_platform_id> platforms;
       {
-        if( m_json_config["opencl"][platform].is_object() && m_json_config["opencl"][platform].size() > 0u )
+        cl_uint plat_count{ 0 };
+        cl.GetPlatformIDs( 0u, nullptr, &plat_count );
+        platforms.resize( plat_count );
+        cl.GetPlatformIDs( plat_count, platforms.data(), nullptr );
+      }
+      cl_uint device_count{ 0 };
+
+      for( auto const& [platId, platName] : opencl_platforms )
+      {
+        device_count = 0;
+        for( auto const& p : platforms )
+        {
+          std::string plat_name;
+          {
+            size_t name_size{ 0 };
+            cl.GetPlatformInfo( p, CL_PLATFORM_NAME, 0u, nullptr, &name_size );
+            char* name{ new char[name_size] };
+            cl.GetPlatformInfo( p, CL_PLATFORM_NAME, name_size, name, nullptr );
+            plat_name = name;
+            delete[] name;
+          }
+          if( plat_name.find( platName ) != std::string::npos )
+          {
+            cl.GetDeviceIDs( p, CL_DEVICE_TYPE_ALL, 0u, nullptr, &device_count );
+            break;
+          }
+        }
+
+        json::iterator it_plat = iter->find( platId );
+        if( it_plat->is_array() && it_plat->size() > 0u )
         {
           device_list_t devices;
 
-          for( auto& device : m_json_config["opencl"][platform] )
+          json::const_iterator it_en, it_dev, it_int;
+          for( auto const& device : *it_plat )
           {
-            if( ( device.find( "enabled" ) != device.end() &&
-                  device["enabled"].is_boolean() &&
-                  device["enabled"].get<bool>() ) &&
-                  ( device.find( "device" ) != device.end() &&
-                    device["device"].is_number_integer() &&
-                    device["device"].get<int32_t>() < device_count ) )
+            it_en = device.find( "enabled"s );
+            it_dev = device.find( "device"s );
+            it_int = device.find( "intensity"s );
+            if( ( it_en != device.end() &&
+                  it_en->is_boolean() &&
+                  it_en->get<bool>() ) &&
+                  ( it_dev != device.end() &&
+                    it_dev->is_number_integer() &&
+                    it_dev->get<cl_uint>() < device_count ) )
             {
-              devices.emplace_back( device["device"],
-                ( ( device.find( "intensity" ) != device.end() &&
-                    device["intensity"].is_number_float() )
-                  ? device["intensity"].get<double>()
+              devices.emplace_back( *it_dev,
+                ( ( it_int != device.end() &&
+                    it_int->is_number() )
+                  ? it_int->get<double>()
                   : DEFAULT_INTENSITY ) );
             }
           }
 
           if( devices.size() > 0u )
           {
-            m_opencl_devices.emplace_back( platform, devices );
+            m_opencl_devices.emplace_back( platId, devices );
           }
         }
       }
     }
 
-    if( m_json_config.find( "threads" ) != m_json_config.end() &&
-        m_json_config["threads"].is_number() &&
-        m_json_config["threads"].get<uint32_t>() > 0 )
+    iter = m_json_config.find( "threads"s );
+    if( iter != m_json_config.end() &&
+        iter->is_number() &&
+        iter->get<uint32_t>() > 0 )
     {
-      m_cpu_threads = m_json_config["threads"].get<uint32_t>();
+      m_cpu_threads = iter->get<uint32_t>();
     }
 
-    if( m_json_config.find( "worker_name" ) != m_json_config.end() &&
-        m_json_config["worker_name"].is_string() )
+    iter = m_json_config.find( "worker_name"s );
+    if( iter != m_json_config.end() &&
+        iter->is_string() )
     {
-      m_worker_name = m_json_config["worker_name"].get<std::string>();
+      m_worker_name = iter->get<std::string>();
     }
 
-    if( m_json_config.find( "telemetry" ) != m_json_config.end() )
+    iter = m_json_config.find( "telemetry"s );
+    if( iter != m_json_config.end() )
     {
-      if( m_json_config["telemetry"].is_object() &&
-          m_json_config["telemetry"].find( "enabled" ) != m_json_config["telemetry"].end() &&
-          m_json_config["telemetry"]["enabled"].is_boolean() &&
-          m_json_config["telemetry"]["enabled"].get<bool>() &&
-          m_json_config["telemetry"].find( "port" ) != m_json_config["telemetry"].end() )
-      {
-        if( m_json_config["telemetry"]["port"].is_number() &&
-            m_json_config["telemetry"]["port"].get<uint64_t>() > 0 &&
-            m_json_config["telemetry"]["port"].get<uint64_t>() < 65535 )
-        {
-          m_api_ports = std::to_string( m_json_config["telemetry"]["port"].get<uint64_t>() );
-        }
-        else if( m_json_config["telemetry"]["port"].is_string() &&
-                 m_json_config["telemetry"]["port"].get<std::string>().length() > 0u &&
-                 m_json_config["telemetry"]["port"].get<std::string>() != "0"s )
-        {
-          m_api_ports = m_json_config["telemetry"]["port"].get<std::string>();
-        }
-        else
-        {
-          pushLog( R"(API configuration error: "port" present but malformed. Using default port 4863.)"s );
-          m_api_ports = "4863"s;
-        }
-
-        //if( m_json_config["telemetry"].find( "acl" ) != m_json_config["telemetry"].end() &&
-        //    m_json_config["telemetry"]["acl"].is_string() &&
-        //    m_json_config["telemetry"]["acl"].get<std::string>().length() > 0u )
-        //{
-        //  m_api_allowed = m_json_config["telemetry"]["acl"].get<std::string>();
-        //}
-        //else
-        //{
-        //  pushLog( R"(API configuration error: "acl" present but malformed. Using default empty ACL.)"s );
-        //  m_api_allowed = ""s;
-        //}
-      }
-      else if( m_json_config["telemetry"].is_boolean() &&
-               m_json_config["telemetry"].get<bool>() )
+      if( iter->is_boolean() &&
+          iter->get<bool>() )
       {
         m_api_ports = "4863"s;
         //m_api_allowed = ""s;
+      }
+      else if( iter->is_object())
+      {
+        json::iterator it_en{ iter->find( "enabled"s ) };
+        if( it_en != iter->end() &&
+            it_en->is_boolean() &&
+            it_en->get<bool>() )
+        {
+          json::iterator it_port{ iter->find( "port"s ) };
+          if( it_port != iter->end() && it_port->is_number_unsigned() )
+          {
+            uint64_t temp{ it_port->get<uint64_t>() };
+            if( temp > 0 && temp < 65535 )
+            {
+              m_api_ports = std::to_string( temp );
+            }
+          }
+          else if( it_port->is_string() )
+          {
+            std::string temp{ it_port->get<std::string>() };
+            if( temp.length() > 0u && temp != "0"s )
+            {
+              m_api_ports = it_port->get<std::string>();
+            }
+          }
+          else
+          {
+            Log::pushLog( R"(API enabled but "port" not present or malformed. Using default port 4863.)"s );
+            m_api_ports = "4863"s;
+          }
+
+          //json::iterator it_acl{ iter->find( "acl" ) };
+          //if( it_acl != m_json_config["telemetry"].end() &&
+          //    it_acl->is_string() &&
+          //    it_acl->get<std::string>().length() > 0u )
+          //{
+          //  m_api_allowed = it_acl->get<std::string>();
+          //}
+          //else
+          //{
+          //  pushLog( R"(API configuration error: "acl" present but malformed. Using default empty ACL.)"s );
+          //  m_api_allowed = ""s;
+          //}
+        }
       }
     }
 
     reinterpret_cast<uint64_t&>( m_solution[0] ) = 06055134500533075101ull;
 
-    std::random_device r;
-    std::mt19937_64 gen{ r() };
+    std::mt19937_64 gen{ std::random_device{}() };
     std::uniform_int_distribution<uint64_t> urInt{ 0, UINT64_MAX };
 
-    for( uint_fast8_t i_rand{ 8 }; i_rand < 32; i_rand += 8 )
+    for( uint_fast8_t i_rand{ 1 }; i_rand < 4; ++i_rand )
     {
-      reinterpret_cast<uint64_t&>( m_solution[i_rand] ) = urInt( gen );
+      reinterpret_cast<uint64_t*>( m_solution.data() )[i_rand] = urInt( gen );
     }
 
     std::memset( &m_solution[12], 0, 8 );
@@ -356,7 +380,8 @@ namespace MinerState
 
   auto getIncSearchSpace( uint64_t const& threads ) -> uint64_t const
   {
-    m_hash_count_printable.fetch_add( threads, std::memory_order_acq_rel );
+    UI::UpdateHashrate( m_hash_count_printable.fetch_add( threads, std::memory_order_acq_rel ) );
+
     return m_hash_count.fetch_add( threads, std::memory_order_acq_rel );
   }
 
@@ -367,45 +392,9 @@ namespace MinerState
     m_round_start = steady_clock::now();
   }
 
-  auto getRoundStartTime() -> std::chrono::time_point<std::chrono::steady_clock> const
+  auto getRoundStartTime() -> std::chrono::time_point<std::chrono::steady_clock> const&
   {
     return m_round_start;
-  }
-
-  auto getLog( std::ostream& outstream ) -> std::ostream&
-  {
-    guard lock( m_log_mutex );
-
-    while( m_log.size() > 0 )
-    {
-      outstream << m_log.front();
-      m_log.pop();
-    }
-
-    return outstream;
-  }
-
-  auto pushLog( std::string const& message ) -> void
-  {
-    guard lock( m_log_mutex );
-    m_log.push( getPrintableTimeStamp() + message + '\n' );
-  }
-
-  auto getPrintableTimeStamp() -> std::string const
-  {
-    std::stringstream ss_ts;
-
-    auto now{ system_clock::now() };
-    auto now_ms{ duration_cast<milliseconds>( now.time_since_epoch() ) % 1000 };
-    std::time_t tt_ts{ system_clock::to_time_t( now ) };
-    std::tm tm_ts{ *std::localtime( &tt_ts ) };
-
-    if( !UseOldUI() ) ss_ts << "\x1b[90m";
-    ss_ts << std::put_time( &tm_ts, "[%T" ) << '.'
-          << std::setw( 3 ) << std::setfill( '0' ) << now_ms.count() << "] ";
-    if( !UseOldUI() ) ss_ts << "\x1b[39m";
-
-    return ss_ts.str();
   }
 
   auto getPrintableHashCount() -> uint64_t const
@@ -413,64 +402,65 @@ namespace MinerState
     return m_hash_count_printable.load( std::memory_order_acquire );
   }
 
-  template<typename T>
-  auto hexToBytes( std::string_view const& hex, T& bytes ) -> void
+  auto getSolution() -> std::string
   {
-    assert( hex.length() % 2 == 0 );
-    if( hex.substr( 0, 2 ) == "0x"s )
-      HexToBytes( hex.substr( 2 ), bytes );
-    else
-      HexToBytes( hex, bytes );
-  }
+    std::string retStr{};
 
-  template<typename T>
-  auto bytesToString( T const& buffer ) -> std::string const
-  {
-    std::string output;
-    output.reserve( buffer.size() * 2 + 1 );
-
-    for( auto byte : buffer )
-      output += ascii[byte];
-
-    return output;
-  }
-
-  auto getSolution() -> std::string const
-  {
-    if( m_solutions_queue.empty() )
-      return "";
-
-    static hash_t ret{ m_solution };
-
+    if( !m_solutions_queue.empty() )
     {
       guard lock( m_solutions_mutex );
-      std::memcpy( &ret[12], &m_solutions_queue.front(), 8 );
-      m_solutions_queue.pop();
+      retStr = m_solutions_queue.back();
+      m_solutions_queue.pop_back();
     }
 
-    return bytesToString( ret );
+    return retStr;
   }
 
-  auto pushSolution( uint64_t const& sol ) -> void
+  auto getAllSolutions() -> std::vector<std::string>
   {
+    std::vector<std::string> retVec;
+
+    if( !m_solutions_queue.empty() )
+    {
+      guard lock( m_solutions_mutex );
+      retVec.swap( m_solutions_queue );
+    }
+
+    return retVec;
+  }
+
+  template<typename T>
+  auto pushSolution( T const sols ) -> void
+  {
+    static hash_t ret{ m_solution };
+
     guard lock( m_solutions_mutex );
-    m_solutions_queue.push( sol );
+    if constexpr( std::is_integral_v<T> )
+    {
+      std::memcpy( &ret[12], &sols, 8 );
+      m_solutions_queue.emplace_back( bytesToString( ret ) );
+    }
+    else
+    {
+      m_solutions_queue.reserve( sols.size() + m_solutions_queue.size() );
+      for( auto const& val : sols )
+      {
+        std::memcpy( &ret[12], &val, 8 );
+        m_solutions_queue.emplace_back( bytesToString( ret ) );
+      }
+    }
   }
 
   auto incSolCount( uint64_t const& count ) -> void
   {
     m_sol_count.fetch_add( count, std::memory_order_acq_rel );
-    if( count > 0 ) m_new_solution.store( true, std::memory_order_release );
+
+    UI::UpdateSolutions( m_sol_count.load( std::memory_order_acquire ) );
   }
 
   auto getSolCount() -> uint64_t const
   {
     return m_sol_count.load( std::memory_order_acquire );
-  }
-
-  auto getSolNew() -> bool const
-  {
-    return m_new_solution.exchange( false, std::memory_order_acq_rel );
   }
 
   auto getPrefix() -> std::string const
@@ -479,6 +469,7 @@ namespace MinerState
 
     {
       guard lock( m_message_mutex );
+      //std::copy( m_message.begin(), m_message.begin() + 51, temp.begin() );
       std::memcpy( temp.data(), m_message.data(), 52 );
     }
 
@@ -491,46 +482,45 @@ namespace MinerState
 
     {
       guard lock( m_message_mutex );
+      //std::copy( m_challenge_old.begin(), m_challenge_old.begin() + 31, temp.begin() );
+      //std::copy( m_message.begin() + 31, m_message.begin() + 51, temp.begin() );
       std::memcpy( temp.data(), m_challenge_old.data(), 32 );
-    }
-
-    {
-      guard lock( m_message_mutex );
       std::memcpy( &temp[32], m_message.data(), 20 );
     }
 
     return bytesToString( temp );
   }
 
-  auto setChallenge( std::string_view const& challenge ) -> void
+  auto setChallenge( std::string_view const challenge ) -> void
   {
     hash_t temp;
     hexToBytes( challenge, temp );
 
     {
       guard lock( m_message_mutex );
-      std::memcpy( m_message.data(), temp.data(), 32 );
+
+      if( getSubmitStale() )
+        //std::copy( m_message.begin(), m_message.begin() + 31, m_challenge_old.begin() );
+        std::memcpy( m_challenge_old.data(), m_message.data(), 32 );
+
+      //std::move( temp.begin(), temp.begin() + 31, m_message.begin() );
+      std::memmove( m_message.data(), temp.data(), 32 );
     }
 
     if( !getSubmitStale() )
     {
       guard lock( m_solutions_mutex );
-      std::queue<uint64_t>().swap( m_solutions_queue );
+      std::vector<std::string>().swap( m_solutions_queue );
     }
+
+    UI::UpdateChallenge( challenge.substr( 2, 8 ) );
 
     {
-      guard lock( m_print_mutex );
-      m_challenge_printable = challenge.substr( 2, 8 );
+      guard lock{ m_is_ready_mutex };
+      m_challenge_ready.store( true, std::memory_order_release );
     }
-
-    m_challenge_ready.store( true, std::memory_order_release );
+    m_is_ready.notify_one();
     setMidstate();
-  }
-
-  auto getPrintableChallenge() -> std::string const
-  {
-    guard lock( m_print_mutex );
-    return m_challenge_printable;
   }
 
   auto getChallenge() -> std::string const
@@ -539,6 +529,7 @@ namespace MinerState
 
     {
       guard lock( m_message_mutex );
+      //std::copy( m_message.begin(), m_message.begin() + 31, temp.begin() );
       std::memcpy( temp.data(), m_message.data(), 32 );
     }
 
@@ -551,23 +542,29 @@ namespace MinerState
 
     {
       guard lock( m_message_mutex );
+      //std::copy( m_message.begin(), m_message.begin() + 31, temp.begin() );
       std::memcpy( temp.data(), m_challenge_old.data(), 32 );
     }
 
     return bytesToString( temp );
   }
 
-  auto setPoolAddress( std::string_view const& address ) -> void
+  auto setPoolAddress( std::string_view const address ) -> void
   {
-    hash_t temp;
+    address_t temp;
     hexToBytes( address, temp );
 
     {
       guard lock( m_message_mutex );
-      std::memcpy( &m_message[32], temp.data(), 20 );
+      //std::move( temp.begin(), temp.end(), m_message.begin() + 31 );
+      std::memmove( &m_message[32], temp.data(), 20 );
     }
 
-    m_pool_address_ready.store( true, std::memory_order_release );
+    {
+      guard lock( m_is_ready_mutex );
+      m_pool_address_ready.store( true, std::memory_order_release );
+    }
+    m_is_ready.notify_one();
     setMidstate();
   }
 
@@ -577,6 +574,7 @@ namespace MinerState
 
     {
       guard lock( m_message_mutex );
+      //std::copy( m_message.begin() + 31, m_message.begin() + 51, temp.begin() );
       std::memcpy( temp.data(), &m_message[32], 20 );
     }
 
@@ -606,7 +604,7 @@ namespace MinerState
     return m_target_num.load( std::memory_order_acquire );
   }
 
-  auto getMaximumTarget() -> BigUnsigned const
+  auto getMaximumTarget() -> BigUnsigned const&
   {
     return m_maximum_target;
   }
@@ -619,16 +617,20 @@ namespace MinerState
 
   auto setMidstate() -> void
   {
-    if( !m_challenge_ready || !m_pool_address_ready ) return;
+    if( !m_challenge_ready.load( std::memory_order_acquire ) ||
+        !m_pool_address_ready.load( std::memory_order_acquire ) )
+    { return; }
 
-    uint64_t message[11]{ 0 };
+    std::array<uint64_t, 11> message{ 0 };
 
     {
       guard lock( m_message_mutex );
-      std::memcpy( message, m_message.data(), 84 );
+      //std::copy( m_message.begin(), m_message.end(), reinterpret_cast<uint8_t*>( message.data() ) );
+      std::memcpy( message.data(), m_message.data(), 84 );
     }
 
-    uint64_t C[5], D[5], mid[25];
+    std::array<uint64_t, 25> mid;
+    uint64_t C[5], D[5];
     C[0] = message[0] ^ message[5] ^ message[10] ^ 0x100000000ull;
     C[1] = message[1] ^ message[6] ^ 0x8000000000000000ull;
     C[2] = message[2] ^ message[7];
@@ -669,7 +671,8 @@ namespace MinerState
 
     {
       guard lock( m_midstate_mutex );
-      std::memcpy( m_midstate.data(), mid, 200 );
+      //std::move( mid.begin(), mid.end(), reinterpret_cast<uint64_t*>(m_midstate.data()) );
+      std::memmove( m_midstate.data(), mid.data(), 200 );
     }
   }
 
@@ -681,21 +684,14 @@ namespace MinerState
     return m_midstate;
   }
 
-  auto setAddress( std::string_view const& address ) -> void
+  auto setAddress( std::string_view const address ) -> void
   {
     {
       guard lock( m_address_mutex );
       m_address = address;
     }
-    {
-      guard lock( m_print_mutex );
-      m_address_printable = address.substr( 0, 8 );
-    }
-  }
 
-  auto getPrintableAddress() -> std::string const
-  {
-    return m_address_printable;
+    UI::UpdateAddress( address.substr( 0, 8 ) );
   }
 
   auto getAddress() -> std::string const
@@ -718,8 +714,14 @@ namespace MinerState
   auto setDiff( uint64_t const& diff ) -> void
   {
     m_diff.store( diff, std::memory_order_release );
-    m_diff_ready.store( true, std::memory_order_release );
+    {
+      guard lock{ m_is_ready_mutex };
+      m_diff_ready.store( true, std::memory_order_release );
+    }
+    m_is_ready.notify_one();
     setTarget( m_maximum_target / diff );
+
+    UI::UpdateDifficulty( diff );
   }
 
   auto getDiff() -> uint64_t const
@@ -727,19 +729,21 @@ namespace MinerState
     return m_diff.load( std::memory_order_acquire );
   }
 
-  auto setPoolUrl( std::string_view const& pool ) -> void
+  auto setPoolUrl( std::string_view const pool ) -> void
   {
     if( pool.find( "mine0xbtc.eu"s ) != std::string::npos )
     {
       std::cerr << "Selected pool '"sv << pool
                 << "' is blocked for deceiving the community and apparent scamming.\n"sv
                 << "Please select a different pool to mine on.\n"sv;
-      std::exit( EXIT_FAILURE );
+      std::abort();
     }
     {
       guard lock( m_pool_url_mutex );
       m_pool_url = pool;
     }
+
+    UI::UpdateUrl( pool );
   }
 
   auto getPoolUrl() -> std::string const
@@ -763,11 +767,15 @@ namespace MinerState
     return m_cpu_threads;
   }
 
-  auto setTokenName( std::string_view const& token ) -> void
+  auto setTokenName( std::string_view const token ) -> void
   {
     m_token_name = token;
     std::string temp{ token };
-    std::transform( token.begin(),
+    std::transform(
+#if defined _MSC_VER // GCC is not cooperative
+                    std::execution::par_unseq,
+#endif
+                    token.begin(),
                     token.end(),
                     temp.begin(),
                     []( uint8_t c ) { return static_cast<char>( std::tolower( c ) ); } );
@@ -781,11 +789,6 @@ namespace MinerState
     }
   }
 
-  auto getTokenName() -> std::string const&
-  {
-    return m_token_name;
-  }
-
   auto setSubmitStale( bool const& submitStale ) -> void
   {
     m_submit_stale = submitStale;
@@ -796,26 +799,29 @@ namespace MinerState
     return m_submit_stale;
   }
 
-  auto getWorkerName() -> std::string const&
+  auto getWorkerName() -> std::string_view
   {
     return m_worker_name;
   }
 
-  auto getTelemetryPorts() -> std::string const&
+  auto getTelemetryPorts() -> std::string_view
   {
     return m_api_ports;
   }
 
-  auto getTelemetryAcl() -> std::string const&
+  auto getTelemetryAcl() -> std::string_view
   {
     return m_api_allowed;
   }
 
-  auto isReady() -> bool const
+  auto waitUntilReady() -> void
   {
-    return (m_diff_ready.load( std::memory_order_acquire ) &&
-            m_challenge_ready.load( std::memory_order_acquire ) &&
-            m_pool_address_ready.load( std::memory_order_acquire ));
+    cond_lock lock( m_is_ready_mutex );
+    m_is_ready.wait( lock, [&] {
+        return (m_diff_ready.load( std::memory_order_acquire ) &&
+                m_challenge_ready.load( std::memory_order_acquire ) &&
+                m_pool_address_ready.load( std::memory_order_acquire ));
+      } );
   }
 
   auto isDebug() -> bool const&

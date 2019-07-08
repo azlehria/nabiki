@@ -309,7 +309,7 @@ md5_process(md5_state_t *pms, const md5_byte_t *data /*[64]*/)
 
 /* Round 2. */
 /* Let [abcd k s i] denote the operation
-     a = b + ((a + G(b,c,d) + X[k] + T[i]) <<< s). */
+	 a = b + ((a + G(b,c,d) + X[k] + T[i]) <<< s). */
 #define G(x, y, z) (((x) & (z)) | ((y) & ~(z)))
 #define SET(a, b, c, d, k, s, Ti)                                              \
 	t = a + G(b, c, d) + X[k] + Ti;                                            \
@@ -336,7 +336,7 @@ md5_process(md5_state_t *pms, const md5_byte_t *data /*[64]*/)
 
 /* Round 3. */
 /* Let [abcd k s t] denote the operation
-     a = b + ((a + H(b,c,d) + X[k] + T[i]) <<< s). */
+	 a = b + ((a + H(b,c,d) + X[k] + T[i]) <<< s). */
 #define H(x, y, z) ((x) ^ (y) ^ (z))
 #define SET(a, b, c, d, k, s, Ti)                                              \
 	t = a + H(b, c, d) + X[k] + Ti;                                            \
@@ -363,7 +363,7 @@ md5_process(md5_state_t *pms, const md5_byte_t *data /*[64]*/)
 
 /* Round 4. */
 /* Let [abcd k s t] denote the operation
-     a = b + ((a + I(b,c,d) + X[k] + T[i]) <<< s). */
+	 a = b + ((a + I(b,c,d) + X[k] + T[i]) <<< s). */
 #define I(x, y, z) ((y) ^ ((x) | ~(z)))
 #define SET(a, b, c, d, k, s, Ti)                                              \
 	t = a + I(b, c, d) + X[k] + Ti;                                            \
