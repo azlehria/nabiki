@@ -320,3 +320,6 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
+
+# Generated CUDA fatbin include
+*.fatbin.h

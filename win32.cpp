@@ -129,8 +129,10 @@ namespace
   }
 }
 
-auto __stdcall wWinMain( [[maybe_unused]] HINSTANCE hInstance, [[maybe_unused]] HINSTANCE hPrevInstance,
-                         [[maybe_unused]] wchar_t* lpCmdLine, [[maybe_unused]] int nCmdShow ) -> int32_t
+auto __stdcall wWinMain( [[maybe_unused]] _In_ HINSTANCE hInstance,
+                         [[maybe_unused]] _In_opt_ HINSTANCE hPrevInstance,
+                         [[maybe_unused]] _In_ wchar_t* lpCmdLine,
+                         [[maybe_unused]] _In_ int32_t nCmdShow ) -> int32_t
 {
   return MinerCore::run();
 }

@@ -63,6 +63,10 @@ CPUSolver::CPUSolver( double const& intensity ) noexcept :
   m_hash_count( 0 ),
   m_hash_count_samples( 0 ),
   m_hash_average( 0 ),
+  m_target( 0 ),
+  m_message{},
+  h_solution_count( 0 ),
+  h_solutions{},
   m_intensity( intensity <= 41.99 ? intensity : 41.99 ),
   m_threads( intensity == 1 ? 1 : static_cast<uint64_t>(std::pow( 2, m_intensity )) )
 {
